@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (2026-10-12)
+
+### Release
+- Publish the existing Git Graph YZC features through the automated version-tag release workflow for Cursor.
+- Provide a versioned VSIX download through GitHub Releases and Open VSX.
+
 ## 0.1.0 (2026-10-12)
 
 ### Git Graph YZC
