@@ -1,20 +1,20 @@
-# Git Graph+
+# Git Graph YZC
 
-[![VS Code Marketplace](https://img.shields.io/badge/Install-VS%20Code%20Marketplace-007ACC?logo=visual-studio-code&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=the0807.git-graph-plus)
-[![Open VSX](https://img.shields.io/badge/Install-Open%20VSX-a60ee5?logo=eclipse-ide&logoColor=white)](https://open-vsx.org/extension/the0807/git-graph-plus)
+[![Open VSX](https://img.shields.io/badge/Install-Open%20VSX-a60ee5?logo=eclipse-ide&logoColor=white)](https://open-vsx.org/extension/sytuacmdyh/git-graph-yzc)
 
-[![CI](https://github.com/the0807/git-graph-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/the0807/git-graph-plus/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/the0807/git-graph-plus/branch/main/graph/badge.svg)](https://codecov.io/gh/the0807/git-graph-plus)
+[![CI](https://github.com/sytuacmdyh/git-graph-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sytuacmdyh/git-graph-plus/actions/workflows/ci.yml)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-[한국어](README.ko.md)
+[한국어](README.ko.md) · [Cursor publishing guide](PUBLISHING.md)
 
-A modern, full-featured Git GUI for VS Code. Visualize your commit history, manage branches, and perform advanced git operations - all without leaving your editor.
+An independently maintained fork of [Git Graph Plus](https://github.com/the0807/git-graph-plus) by sytuacmdyh. This fork adds bulk selection of filtered branches and remembers branch/source filters per repository. It is distributed through Open VSX for Cursor. Commands, views, and settings use the separate `gitGraphYzc` namespace.
 
-> Staging, committing, and inline blame use VS Code's built-in Source Control. Git Graph+ focuses on everything else.
+A modern, full-featured Git GUI for Cursor. Visualize your commit history, manage branches, and perform advanced git operations - all without leaving your editor.
 
-![Git Graph+](resources/main.png)
+> Staging, committing, and inline blame use VS Code's built-in Source Control. Git Graph YZC focuses on everything else.
+
+![Git Graph YZC](resources/main.png)
 
 ---
 
@@ -68,7 +68,7 @@ A modern, full-featured Git GUI for VS Code. Visualize your commit history, mana
 | **Amend**                | Amend the last commit directly from the graph with a single click                                    |
 | **Merge**                | Default, `--no-ff`, `--ff-only`, and squash merge strategies                                          |
 | **Rebase**               | Standard rebase and interactive rebase with drag-to-reorder UI                                        |
-| **Interactive Rebase**   | Keyboard-driven visual UI with action dropdown (pick, reword, edit, squash, fixup, drop), drop warnings, and an autosquash toggle that folds `fixup!`/`squash!` commits into their targets - start it from a branch or a multi-commit selection. An optional classic mode runs `git rebase -i` in an integrated terminal (`gitGraphPlus.interactiveRebase.mode`) |
+| **Interactive Rebase**   | Keyboard-driven visual UI with action dropdown (pick, reword, edit, squash, fixup, drop), drop warnings, and an autosquash toggle that folds `fixup!`/`squash!` commits into their targets - start it from a branch or a multi-commit selection. An optional classic mode runs `git rebase -i` in an integrated terminal (`gitGraphYzc.interactiveRebase.mode`) |
 | **Drag to Rebase/Merge** | Drag one branch onto another in the graph to rebase it onto, or merge it into, the target             |
 | **Squash Commits**       | Select multiple consecutive commits in the graph and squash them into one                             |
 | **Fixup / Squash Commit** | Commit staged changes as a `fixup!` or `squash!` of any commit straight from its context menu, ready for autosquash |
@@ -158,18 +158,18 @@ A modern, full-featured Git GUI for VS Code. Visualize your commit history, mana
 ### Internationalization
 
 - English (default), Korean, and Chinese Simplified
-- Configurable via `gitGraphPlus.locale` setting
+- Configurable via `gitGraphYzc.locale` setting
 - Git terms (commit, merge, rebase, push, pull, fetch, etc.) remain untranslated
 
 ---
 
 ## Getting Started
 
-1. Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=the0807.git-graph-plus)
+1. In Cursor, install **Git Graph YZC** from the extensions panel, or use [Open VSX](https://open-vsx.org/extension/sytuacmdyh/git-graph-yzc). For a local build, run **Extensions: Install from VSIX...**.
 2. Open a folder containing a Git repository
-3. Open Git Graph+ using any of:
-   - **Command Palette** - `Git Graph+: Open`
-   - **Activity Bar** - Click the Git Graph+ icon
+3. Open Git Graph YZC using any of:
+   - **Command Palette** - `Git Graph YZC: Open`
+   - **Activity Bar** - Click the Git Graph YZC icon
    - **SCM title bar**, **Status bar**, or **Editor title bar** - Click the git-merge icon
 
 > [!Tip]
@@ -183,25 +183,25 @@ A modern, full-featured Git GUI for VS Code. Visualize your commit history, mana
 
 | Setting                                | Default       | Description                                              |
 | -------------------------------------- | ------------- | -------------------------------------------------------- |
-| `gitGraphPlus.autoRefresh`             | `true`        | Auto-refresh on repository changes                       |
-| `gitGraphPlus.timeout`                 | `60`          | Max time (seconds) to wait for a Git command before abort |
-| `gitGraphPlus.initialCommitCount`      | `200`         | Commits loaded on first render / refresh (lower = faster in huge repos) |
-| `gitGraphPlus.loadMoreCommitCount`     | `50`          | Extra commits fetched per **Load more commits** click    |
-| `gitGraphPlus.locale`                  | `auto`        | UI language (`auto`, `en`, `ko`, `zh-cn`)                |
-| `gitGraphPlus.graphSortOrder`          | `topological` | Commit sort order (`topological`, `date`, `author-date`) |
-| `gitGraphPlus.interactiveRebase.mode`  | `ui`          | Interactive rebase mode (`ui` visual editor, `classic` `git rebase -i` in a terminal) |
-| `gitGraphPlus.showSignatureStatus`     | `true`        | Show GPG/SSH signature status in the graph               |
-| `gitGraphPlus.commitMessageLinks`      | `[]`          | Custom `{ pattern, url }` regex rules that turn commit-message text into clickable links |
-| `gitGraphPlus.autoDetectRepoLinks`     | `true`        | Auto-link `#123` issues (github.com/gitlab.com) and `!123` GitLab MRs from the `origin` remote |
-| `gitGraphPlus.branchBadgeBarThickness` | `thin`        | Branch badge bar thickness (`thin`, `medium`, `thick`)   |
-| `gitGraphPlus.branchColors`            | `[]`          | Fixed branch colors by name pattern (regex → hex)        |
-| `gitGraphPlus.graphColors`             | 12 colors     | Color palette auto-assigned to graph rails (hex strings) |
+| `gitGraphYzc.autoRefresh`             | `true`        | Auto-refresh on repository changes                       |
+| `gitGraphYzc.timeout`                 | `60`          | Max time (seconds) to wait for a Git command before abort |
+| `gitGraphYzc.initialCommitCount`      | `200`         | Commits loaded on first render / refresh (lower = faster in huge repos) |
+| `gitGraphYzc.loadMoreCommitCount`     | `50`          | Extra commits fetched per **Load more commits** click    |
+| `gitGraphYzc.locale`                  | `auto`        | UI language (`auto`, `en`, `ko`, `zh-cn`)                |
+| `gitGraphYzc.graphSortOrder`          | `topological` | Commit sort order (`topological`, `date`, `author-date`) |
+| `gitGraphYzc.interactiveRebase.mode`  | `ui`          | Interactive rebase mode (`ui` visual editor, `classic` `git rebase -i` in a terminal) |
+| `gitGraphYzc.showSignatureStatus`     | `true`        | Show GPG/SSH signature status in the graph               |
+| `gitGraphYzc.commitMessageLinks`      | `[]`          | Custom `{ pattern, url }` regex rules that turn commit-message text into clickable links |
+| `gitGraphYzc.autoDetectRepoLinks`     | `true`        | Auto-link `#123` issues (github.com/gitlab.com) and `!123` GitLab MRs from the `origin` remote |
+| `gitGraphYzc.branchBadgeBarThickness` | `thin`        | Branch badge bar thickness (`thin`, `medium`, `thick`)   |
+| `gitGraphYzc.branchColors`            | `[]`          | Fixed branch colors by name pattern (regex → hex)        |
+| `gitGraphYzc.graphColors`             | 12 colors     | Color palette auto-assigned to graph rails (hex strings) |
 
 ### Operation Defaults
 
-Preset the default options for each operation dialog under `gitGraphPlus.defaults.*` (configure in VS Code Settings):
+Preset the default options for each operation dialog under `gitGraphYzc.defaults.*` (configure in VS Code Settings):
 
-| Operation       | Options (under `gitGraphPlus.defaults.`)                                                     |
+| Operation       | Options (under `gitGraphYzc.defaults.`)                                                     |
 | --------------- | -------------------------------------------------------------------------------------------- |
 | Push            | `push.force`, `push.setUpstream`, `push.allTags`                                             |
 | Pull            | `pull.rebase`, `pull.stash`                                                                  |

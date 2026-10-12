@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0 (2026-10-12)
+
+### Git Graph YZC
+- Initial independent fork of Git Graph Plus, maintained by sytuacmdyh and distributed through Open VSX for Cursor.
+- Added bulk selection of filtered branches and workspace persistence of branch/source filters per repository.
+- Assigned the separate `gitGraphYzc` command, view, configuration, and repository-filter namespaces.
+- Added manual VSIX builds and Open VSX releases without a VS Code Marketplace publishing step.
+
+The entries below record the original Git Graph Plus release history.
+
 ## 0.7.3 (2026-06-30)
 
 ### Bug Fixes

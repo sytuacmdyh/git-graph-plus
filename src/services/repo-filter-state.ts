@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as path from 'path';
 import type { Memento } from 'vscode';
 
@@ -17,7 +18,7 @@ export class RepoFilterState {
     const normalized = process.platform === 'win32'
       ? path.win32.resolve(repoPath).replace(/\\/g, '/').toLowerCase()
       : path.resolve(repoPath);
-    return `gitGraphPlus.repoFilters.v1:${normalized}`;
+    return `gitGraphYzc.repoFilters.v1:${normalized}`;
   }
 
   get(repoPath: string): RepoFilters {
@@ -43,6 +44,6 @@ export class RepoFilterState {
     if (!storage) return;
     this.writes = this.writes
       .then(() => storage.update(key, value))
-      .catch(err => { console.warn('Git Graph+: failed to save repository filters:', err); });
+      .catch(err => { console.warn('Git Graph YZC: failed to save repository filters:', err); });
   }
 }

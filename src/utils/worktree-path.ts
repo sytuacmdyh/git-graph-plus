@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as path from 'path';
 import type { WorktreeInfo } from '../git/types';
 
@@ -17,7 +18,7 @@ export async function resolveDefaultWorktreePath(
       baseRepoPath = mainWorktree.path;
     }
   } catch (err) {
-    console.warn('Git Graph+: failed to resolve main worktree path:', err instanceof Error ? err.message : err);
+    console.warn('Git Graph YZC: failed to resolve main worktree path:', err instanceof Error ? err.message : err);
   }
   return path.join(path.dirname(baseRepoPath), `${path.basename(baseRepoPath)}.worktrees`);
 }

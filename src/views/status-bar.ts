@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as vscode from 'vscode';
 
 export class StatusBarManager implements vscode.Disposable {
@@ -10,8 +11,8 @@ export class StatusBarManager implements vscode.Disposable {
       0
     );
     this.statusItem.text = '$(git-merge)';
-    this.statusItem.command = 'gitGraphPlus.open';
-    this.statusItem.tooltip = 'Git Graph+ - ' + vscode.l10n.t('clickToOpen');
+    this.statusItem.command = 'gitGraphYzc.open';
+    this.statusItem.tooltip = 'Git Graph YZC - ' + vscode.l10n.t('clickToOpen');
     this.disposables.push(this.statusItem);
 
     this.statusItem.show();

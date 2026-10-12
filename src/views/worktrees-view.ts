@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as vscode from 'vscode';
 import { GitService } from '../git/git-service';
 import type { WorktreeInfo } from '../git/types';
@@ -69,7 +70,7 @@ class WorktreeItem extends vscode.TreeItem {
     }
     this.description = worktree.isMain ? '' : displayPath;
     this.command = {
-      command: 'gitGraphPlus.openWorktree',
+      command: 'gitGraphYzc.openWorktree',
       title: 'Open Worktree',
       arguments: [this],
     };

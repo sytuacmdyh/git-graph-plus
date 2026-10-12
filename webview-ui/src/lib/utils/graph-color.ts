@@ -1,5 +1,6 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 /**
- * Built-in graph rail palette. Kept in sync with the `gitGraphPlus.graphColors`
+ * Built-in graph rail palette. Kept in sync with the `gitGraphYzc.graphColors`
  * default in package.json and the extension's DEFAULT_GRAPH_COLORS. Used as the
  * palette store's initial value and as the fallback for an empty palette.
  */

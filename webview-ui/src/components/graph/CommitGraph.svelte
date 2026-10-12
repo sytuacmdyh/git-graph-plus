@@ -1,3 +1,4 @@
+<!-- Modified by sytuacmdyh for Git Graph YZC: independent extension identity. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { commitStore } from '../../lib/stores/commits.svelte';
@@ -699,7 +700,7 @@
   }
 
   // Route an interactive-rebase request to the GUI modal or the classic
-  // terminal flow, per the gitGraphPlus.interactiveRebase.mode setting.
+  // terminal flow, per the gitGraphYzc.interactiveRebase.mode setting.
   function openInteractiveRebase(base: string) {
     dispatchInteractiveRebase(base, uiStore.interactiveRebaseMode, {
       // GUI mode keeps the multi-selection armed while the modal is open (the
@@ -2287,7 +2288,7 @@
 
   /* Signature status icon, shown right after the author name (with the
      col-author flex gap as the single space) only when the graph is fetched
-     with verification on (gitGraphPlus.showSignatureStatus). */
+     with verification on (gitGraphYzc.showSignatureStatus). */
   .sig-icon {
     flex-shrink: 0;
     font-size: 0.95em;
@@ -2310,7 +2311,7 @@
      levels of emphasis share this one visual language: regular branch (no fill)
      < tag/stash/worktree (light tint) < current branch (strong tint + bold).
      The bar width is user-configurable via --badge-bar-width (see
-     gitGraphPlus.branchBadgeBarThickness). */
+     gitGraphYzc.branchBadgeBarThickness). */
   /* Drag-over target uses the same subtle fill as hover. */
   .ref-badge.drag-over {
     box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.12);

@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // extension.ts is the activation entry point — heavily vscode-bound. We can't
@@ -75,6 +76,8 @@ void viewStub;
 import { activate, resolveConfiguredGitPath } from '../extension';
 import { existsSync } from 'fs';
 import { MainPanel } from '../panels/MainPanel';
+import { commands } from 'vscode';
+import manifest from '../../package.json';
 
 function makeContext() {
   return {
@@ -129,8 +132,8 @@ describe('activate', () => {
     H.workspaceFolders = undefined;
     const ctx = makeContext();
     activate(ctx);
-    expect(H.registeredCommands).toContain('git-graph-plus.open');
-    expect(H.registeredCommands).toContain('gitGraphPlus.open');
+    expect(H.registeredCommands).toContain('git-graph-yzc.open');
+    expect(H.registeredCommands).toContain('gitGraphYzc.open');
     expect(H.treeViewsCreated).toEqual([]);
     expect(ctx.subscriptions.length).toBeGreaterThan(0);
   });
@@ -140,17 +143,30 @@ describe('activate', () => {
     const ctx = makeContext();
     expect(() => activate(ctx)).not.toThrow();
 
-    for (const id of ['gitGraphPlus.open', 'gitGraphPlus.refresh', 'gitGraphPlus.fetch', 'gitGraphPlus.pull', 'gitGraphPlus.push', 'gitGraphPlus.createBranch']) {
-      expect(H.registeredCommands).toContain(id);
+    for (const { command } of manifest.contributes.commands) {
+      expect(H.registeredCommands).toContain(command);
     }
     expect(H.registeredCommands.length).toBeGreaterThan(15);
     expect(H.treeViewsCreated).toEqual([
-      'gitGraphPlus.branches',
-      'gitGraphPlus.remotes',
-      'gitGraphPlus.tags',
-      'gitGraphPlus.stashes',
-      'gitGraphPlus.worktrees',
+      'gitGraphYzc.branches',
+      'gitGraphYzc.remotes',
+      'gitGraphYzc.tags',
+      'gitGraphYzc.stashes',
+      'gitGraphYzc.worktrees',
     ]);
+  });
+
+  it('routes the remote branch menu command to the deletion dialog command', () => {
+    H.workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    activate(makeContext());
+    const branch = { name: 'origin/feature/topic', remote: true };
+
+    H.commandHandlers['gitGraphYzc.deleteRemoteBranch']({ branch });
+    expect(commands.executeCommand).toHaveBeenCalledWith('gitGraphYzc.deleteRemoteBranchExplicit', branch);
+    H.commandHandlers['gitGraphYzc.deleteRemoteBranchExplicit'](branch);
+    expect(MainPanel.showModalWithPanel).toHaveBeenCalledWith(expect.anything(), {
+      modal: 'deleteRemoteBranch', remote: 'origin', name: 'feature/topic',
+    });
   });
 
   it('addWorktree defaults beside the main worktree even when active repo is linked worktree', async () => {
@@ -162,7 +178,7 @@ describe('activate', () => {
     const ctx = makeContext();
     activate(ctx);
 
-    await H.commandHandlers['gitGraphPlus.addWorktree']();
+    await H.commandHandlers['gitGraphYzc.addWorktree']();
 
     const { MainPanel } = await import('../panels/MainPanel');
     expect(MainPanel.showModalWithPanel).toHaveBeenCalledWith(ctx.extensionUri, {

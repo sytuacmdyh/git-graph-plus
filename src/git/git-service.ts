@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { writeFile, unlink } from 'fs/promises';
@@ -61,7 +62,7 @@ export class GitService {
   private extraEnv: Record<string, string> = {};
   // Default per-command timeout (ms). Callers can override per call via the
   // `timeout` option; this is the fallback used when they don't. Configurable
-  // via the `gitGraphPlus.timeout` setting so large repos can extend it.
+  // via the `gitGraphYzc.timeout` setting so large repos can extend it.
   private defaultTimeoutMs = 60000;
   private warningHandler: ((message: string) => void) | null = null;
   private authRetryHandler: ((remote?: string) => Promise<boolean>) | null = null;
@@ -83,7 +84,7 @@ export class GitService {
   /**
    * Override the default per-command timeout (in milliseconds). Non-positive
    * or non-finite values are ignored, keeping the built-in fallback. Wired to
-   * the `gitGraphPlus.timeout` setting so users with large repos can extend it.
+   * the `gitGraphYzc.timeout` setting so users with large repos can extend it.
    */
   setDefaultTimeout(ms: number): void {
     if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) {
@@ -108,7 +109,7 @@ export class GitService {
   }
 
   private warn(message: string): void {
-    console.warn(`Git Graph+: ${message}`);
+    console.warn(`Git Graph YZC: ${message}`);
     try { this.warningHandler?.(message); } catch { /* never let a handler break a git call */ }
   }
 
@@ -738,7 +739,7 @@ export class GitService {
         ]);
         return parseStashList(raw);
       } catch (err) {
-        console.warn('Git Graph+: failed to list stashes:', err instanceof Error ? err.message : err);
+        console.warn('Git Graph YZC: failed to list stashes:', err instanceof Error ? err.message : err);
         return [];
       }
     });
@@ -1765,7 +1766,7 @@ export class GitService {
       const raw = await this.exec(['diff', '--name-only', '--diff-filter=U']);
       return raw.trim().split('\n').filter(Boolean);
     } catch (err) {
-      console.warn('Git Graph+: failed to get conflict files:', err instanceof Error ? err.message : err);
+      console.warn('Git Graph YZC: failed to get conflict files:', err instanceof Error ? err.message : err);
       return [];
     }
   }
@@ -2000,7 +2001,7 @@ export class GitService {
       const commits = parseLog(raw, remoteNames);
       return commits[0] ?? null;
     } catch (err) {
-      console.warn('Git Graph+: failed to get commit by hash:', err instanceof Error ? err.message : err);
+      console.warn('Git Graph YZC: failed to get commit by hash:', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -2086,7 +2087,7 @@ export class GitService {
       if (err instanceof GitError && err.exitCode !== null && !this.isExpectedLfsFailure(err.stderr)) {
         this.warn(`LFS ls-files failed: ${err.stderr || err.message}`);
       }
-      console.warn('Git Graph+: LFS ls-files failed:', err instanceof Error ? err.message : err);
+      console.warn('Git Graph YZC: LFS ls-files failed:', err instanceof Error ? err.message : err);
       return [];
     }
   }
@@ -2112,7 +2113,7 @@ export class GitService {
       if (err instanceof GitError && err.exitCode !== null && !this.isExpectedLfsFailure(err.stderr)) {
         this.warn(`LFS locks failed: ${err.stderr || err.message}`);
       }
-      console.warn('Git Graph+: LFS locks failed:', err instanceof Error ? err.message : err);
+      console.warn('Git Graph YZC: LFS locks failed:', err instanceof Error ? err.message : err);
       return [];
     }
   }
@@ -2278,7 +2279,7 @@ export class GitService {
         hotfixPrefix: hotfix,
         versionTagPrefix: versionTag,
       };
-    } catch (err) { console.warn('Git Graph+: failed to get flow config:', err instanceof Error ? err.message : err); return null; }
+    } catch (err) { console.warn('Git Graph YZC: failed to get flow config:', err instanceof Error ? err.message : err); return null; }
   }
 
   async getFlowBranches(): Promise<{ features: string[]; releases: string[]; hotfixes: string[] }> {
@@ -2447,14 +2448,14 @@ export class GitService {
     try {
       await this.exec(['flow', 'version']);
       return true;
-    } catch (err) { console.warn('Git Graph+: flow version check failed:', err instanceof Error ? err.message : err); return false; }
+    } catch (err) { console.warn('Git Graph YZC: flow version check failed:', err instanceof Error ? err.message : err); return false; }
   }
 
   async isFlowInitialized(): Promise<boolean> {
     try {
       await this.exec(['config', '--get', 'gitflow.branch.master']);
       return true;
-    } catch (err) { console.warn('Git Graph+: flow init check failed:', err instanceof Error ? err.message : err); return false; }
+    } catch (err) { console.warn('Git Graph YZC: flow init check failed:', err instanceof Error ? err.message : err); return false; }
   }
 
 }

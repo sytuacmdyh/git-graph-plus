@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // The sidebar TreeDataProviders are vscode-bound but their real work — mapping
@@ -93,7 +94,7 @@ describe('BranchesViewProvider', () => {
     expect(item.description).toBe('current ↑2 ↓1');
     expect(p.getCurrentItem()?.label).toBe('main');
     // setContext is pushed so the sidebar shows Push vs Publish correctly.
-    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', 'gitGraphPlus.currentBranchHasUpstream', true);
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', 'gitGraphYzc.currentBranchHasUpstream', true);
   });
 
   it('excludes remote branches and returns [] on error', async () => {
@@ -153,7 +154,7 @@ describe('TagsViewProvider', () => {
     const items = await new TagsViewProvider(mockSvc({ tags })).getChildren();
     expect(items[0].label).toBe('v1.0');
     expect(items[0].description).toBe('abcdef1');
-    expect(items[0].command?.command).toBe('gitGraphPlus.showTagMenu');
+    expect(items[0].command?.command).toBe('gitGraphYzc.showTagMenu');
     expect(themeId(items[0])).toBe('tag');
   });
 });
@@ -164,7 +165,7 @@ describe('StashesViewProvider', () => {
     const items = await new StashesViewProvider(mockSvc({ stashList })).getChildren();
     expect(items[0].label).toBe('stash@{0}');
     expect(items[0].description).toBe('WIP');
-    expect(items[0].command?.command).toBe('gitGraphPlus.showStashMenu');
+    expect(items[0].command?.command).toBe('gitGraphYzc.showStashMenu');
   });
 });
 
@@ -253,8 +254,8 @@ describe('StatusBarManager', () => {
     expect(createFn).toHaveBeenCalledWith(2 /* Right */, 0);
     const item = createFn.mock.results.at(-1)!.value;
     expect(item.text).toBe('$(git-merge)');
-    expect(item.command).toBe('gitGraphPlus.open');
-    expect(item.tooltip).toContain('Git Graph+');
+    expect(item.command).toBe('gitGraphYzc.open');
+    expect(item.tooltip).toContain('Git Graph YZC');
     expect(item.show).toHaveBeenCalled();
     mgr.dispose();
     expect(item.dispose).toHaveBeenCalled();

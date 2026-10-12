@@ -1,7 +1,8 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 /**
- * Built-in graph rail palette. Kept in sync with the `gitGraphPlus.graphColors`
+ * Built-in graph rail palette. Kept in sync with the `gitGraphYzc.graphColors`
  * default in package.json and the webview's DEFAULT_GRAPH_COLORS.
  */
 export const DEFAULT_GRAPH_COLORS: string[] = [

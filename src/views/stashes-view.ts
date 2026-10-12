@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as vscode from 'vscode';
 import { GitService } from '../git/git-service';
 import type { StashEntry } from '../git/types';
@@ -54,7 +55,7 @@ class StashItem extends vscode.TreeItem {
     this.tooltip = `${stash.message}\n${stash.date}`;
 
     this.command = {
-      command: 'gitGraphPlus.showStashMenu',
+      command: 'gitGraphYzc.showStashMenu',
       title: 'Show Stash Menu',
       arguments: [{ stash: this.stash, index: this.stash.index }],
     };

@@ -1,20 +1,20 @@
-# Git Graph+
+# Git Graph YZC
 
-[![VS Code Marketplace](https://img.shields.io/badge/Install-VS%20Code%20Marketplace-007ACC?logo=visual-studio-code&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=the0807.git-graph-plus)
-[![Open VSX](https://img.shields.io/badge/Install-Open%20VSX-a60ee5?logo=eclipse-ide&logoColor=white)](https://open-vsx.org/extension/the0807/git-graph-plus)
+[![Open VSX](https://img.shields.io/badge/Install-Open%20VSX-a60ee5?logo=eclipse-ide&logoColor=white)](https://open-vsx.org/extension/sytuacmdyh/git-graph-yzc)
 
-[![CI](https://github.com/the0807/git-graph-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/the0807/git-graph-plus/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/the0807/git-graph-plus/branch/main/graph/badge.svg)](https://codecov.io/gh/the0807/git-graph-plus)
+[![CI](https://github.com/sytuacmdyh/git-graph-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sytuacmdyh/git-graph-plus/actions/workflows/ci.yml)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-[English](README.md)
+[English](README.md) · [Cursor 배포 안내](PUBLISHING.md)
 
-VS Code를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜치를 관리하고, 고급 Git 작업까지 에디터를 벗어나지 않고 수행할 수 있습니다.
+`sytuacmdyh`가 독립적으로 유지보수하는 [Git Graph Plus](https://github.com/the0807/git-graph-plus)의 포크입니다. 필터링된 브랜치 일괄 선택과 리포지토리별 브랜치/소스 필터 저장을 추가했습니다. Cursor용 Open VSX로 배포하며 명령, 뷰, 설정은 `gitGraphYzc` 네임스페이스를 사용합니다.
 
-> 스테이징, 커밋, 인라인 블레임은 VS Code 내장 소스 제어를 사용합니다. Git Graph+는 그 외 모든 것에 집중합니다.
+Cursor를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜치를 관리하고, 고급 Git 작업까지 에디터를 벗어나지 않고 수행할 수 있습니다.
 
-![Git Graph+](resources/main.png)
+> 스테이징, 커밋, 인라인 블레임은 VS Code 내장 소스 제어를 사용합니다. Git Graph YZC는 그 외 모든 것에 집중합니다.
+
+![Git Graph YZC](resources/main.png)
 
 ---
 
@@ -68,7 +68,7 @@ VS Code를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜
 | **Amend**                | 그래프에서 클릭 한 번으로 마지막 커밋을 즉시 수정(amend)                                |
 | **Merge**                | Default, `--no-ff`, `--ff-only`, squash merge 전략                                      |
 | **Rebase**               | 일반 rebase 및 드래그로 순서 변경 가능한 interactive rebase UI                          |
-| **Interactive Rebase**   | 액션 드롭다운 (pick, reword, edit, squash, fixup, drop), drop 경고, `fixup!`/`squash!` 커밋을 대상에 접어 넣는 autosquash 토글이 포함된 키보드 조작형 시각적 UI - 브랜치 또는 여러 커밋 선택에서 시작. 선택적 classic 모드는 통합 터미널에서 `git rebase -i` 실행 (`gitGraphPlus.interactiveRebase.mode`) |
+| **Interactive Rebase**   | 액션 드롭다운 (pick, reword, edit, squash, fixup, drop), drop 경고, `fixup!`/`squash!` 커밋을 대상에 접어 넣는 autosquash 토글이 포함된 키보드 조작형 시각적 UI - 브랜치 또는 여러 커밋 선택에서 시작. 선택적 classic 모드는 통합 터미널에서 `git rebase -i` 실행 (`gitGraphYzc.interactiveRebase.mode`) |
 | **드래그 Rebase/Merge**  | 그래프에서 한 브랜치를 다른 브랜치 위로 드래그하여 대상 위로 rebase하거나 대상에 merge  |
 | **Squash Commits**       | 그래프에서 연속된 여러 커밋을 선택해 하나로 합치기                                      |
 | **Fixup / Squash 커밋**  | 스테이징된 변경을 컨텍스트 메뉴에서 임의 커밋의 `fixup!` 또는 `squash!` 커밋으로 생성, autosquash 준비 |
@@ -158,18 +158,18 @@ VS Code를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜
 ### 다국어 지원
 
 - 영어 (기본), 한국어, 중국어 간체
-- `gitGraphPlus.locale` 설정으로 변경 가능
+- `gitGraphYzc.locale` 설정으로 변경 가능
 - Git 용어 (commit, merge, rebase, push, pull, fetch 등)는 번역하지 않음
 
 ---
 
 ## 시작하기
 
-1. [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=the0807.git-graph-plus)에서 설치
+1. Cursor 확장 패널에서 **Git Graph YZC**를 검색하거나 [Open VSX](https://open-vsx.org/extension/sytuacmdyh/git-graph-yzc)에서 설치합니다. 로컬 빌드는 **Extensions: Install from VSIX...**로 설치합니다.
 2. Git 리포지토리가 포함된 폴더 열기
-3. Git Graph+ 열기:
-   - **명령 팔레트** - `Git Graph+: Open`
-   - **액티비티 바** - Git Graph+ 아이콘 클릭
+3. Git Graph YZC 열기:
+   - **명령 팔레트** - `Git Graph YZC: Open`
+   - **액티비티 바** - Git Graph YZC 아이콘 클릭
    - **SCM 제목 표시줄**, **상태 표시줄** 또는 **에디터 제목 표시줄** - git-merge 아이콘 클릭
 
 > [!Tip]
@@ -183,25 +183,25 @@ VS Code를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜
 
 | 설정                                   | 기본값        | 설명                                                  |
 | -------------------------------------- | ------------- | ----------------------------------------------------- |
-| `gitGraphPlus.autoRefresh`             | `true`        | 리포지토리 변경 감지 시 자동 새로고침                 |
-| `gitGraphPlus.timeout`                 | `60`          | Git 명령 중단 전 최대 대기 시간 (초)                  |
-| `gitGraphPlus.initialCommitCount`      | `200`         | 첫 렌더링/새로고침 시 로드할 커밋 수 (큰 리포지토리는 낮추면 빨라짐) |
-| `gitGraphPlus.loadMoreCommitCount`     | `50`          | **Load more commits** 클릭당 추가로 가져올 커밋 수    |
-| `gitGraphPlus.locale`                  | `auto`        | UI 언어 (`auto`, `en`, `ko`, `zh-cn`)                 |
-| `gitGraphPlus.graphSortOrder`          | `topological` | 커밋 정렬 순서 (`topological`, `date`, `author-date`) |
-| `gitGraphPlus.interactiveRebase.mode`  | `ui`          | Interactive rebase 모드 (`ui` 시각적 편집기, `classic` 터미널에서 `git rebase -i`) |
-| `gitGraphPlus.showSignatureStatus`     | `true`        | 그래프에 GPG/SSH 서명 상태 표시                       |
-| `gitGraphPlus.commitMessageLinks`      | `[]`          | 커밋 메시지 텍스트를 클릭 가능한 링크로 만드는 사용자 정의 `{ pattern, url }` 정규식 규칙 |
-| `gitGraphPlus.autoDetectRepoLinks`     | `true`        | `origin` 리모트 기반으로 `#123` 이슈(github.com/gitlab.com)와 `!123` GitLab MR 자동 링크 |
-| `gitGraphPlus.branchBadgeBarThickness` | `thin`        | 브랜치 배지 색상 바 두께 (`thin`, `medium`, `thick`)  |
-| `gitGraphPlus.branchColors`            | `[]`          | 이름 패턴별 고정 브랜치 색 (정규식 → hex)             |
-| `gitGraphPlus.graphColors`             | 12색          | 그래프 레일에 자동 할당되는 색 팔레트 (hex 문자열)    |
+| `gitGraphYzc.autoRefresh`             | `true`        | 리포지토리 변경 감지 시 자동 새로고침                 |
+| `gitGraphYzc.timeout`                 | `60`          | Git 명령 중단 전 최대 대기 시간 (초)                  |
+| `gitGraphYzc.initialCommitCount`      | `200`         | 첫 렌더링/새로고침 시 로드할 커밋 수 (큰 리포지토리는 낮추면 빨라짐) |
+| `gitGraphYzc.loadMoreCommitCount`     | `50`          | **Load more commits** 클릭당 추가로 가져올 커밋 수    |
+| `gitGraphYzc.locale`                  | `auto`        | UI 언어 (`auto`, `en`, `ko`, `zh-cn`)                 |
+| `gitGraphYzc.graphSortOrder`          | `topological` | 커밋 정렬 순서 (`topological`, `date`, `author-date`) |
+| `gitGraphYzc.interactiveRebase.mode`  | `ui`          | Interactive rebase 모드 (`ui` 시각적 편집기, `classic` 터미널에서 `git rebase -i`) |
+| `gitGraphYzc.showSignatureStatus`     | `true`        | 그래프에 GPG/SSH 서명 상태 표시                       |
+| `gitGraphYzc.commitMessageLinks`      | `[]`          | 커밋 메시지 텍스트를 클릭 가능한 링크로 만드는 사용자 정의 `{ pattern, url }` 정규식 규칙 |
+| `gitGraphYzc.autoDetectRepoLinks`     | `true`        | `origin` 리모트 기반으로 `#123` 이슈(github.com/gitlab.com)와 `!123` GitLab MR 자동 링크 |
+| `gitGraphYzc.branchBadgeBarThickness` | `thin`        | 브랜치 배지 색상 바 두께 (`thin`, `medium`, `thick`)  |
+| `gitGraphYzc.branchColors`            | `[]`          | 이름 패턴별 고정 브랜치 색 (정규식 → hex)             |
+| `gitGraphYzc.graphColors`             | 12색          | 그래프 레일에 자동 할당되는 색 팔레트 (hex 문자열)    |
 
 ### 작업 기본값
 
-각 작업 대화상자의 기본 옵션을 `gitGraphPlus.defaults.*` 로 미리 설정할 수 있습니다 (VS Code 설정에서 변경):
+각 작업 대화상자의 기본 옵션을 `gitGraphYzc.defaults.*` 로 미리 설정할 수 있습니다 (VS Code 설정에서 변경):
 
-| 작업            | 옵션 (`gitGraphPlus.defaults.` 하위)                                                         |
+| 작업            | 옵션 (`gitGraphYzc.defaults.` 하위)                                                         |
 | --------------- | -------------------------------------------------------------------------------------------- |
 | Push            | `push.force`, `push.setUpstream`, `push.allTags`                                             |
 | Pull            | `pull.rebase`, `pull.stash`                                                                  |

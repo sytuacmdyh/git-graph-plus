@@ -14,7 +14,7 @@ Provide a clear and concise description of the bug.
 
 List the steps to reproduce the issue.
 
-1. Open Git Graph+
+1. Open Git Graph YZC
 2.
 3.
 
@@ -38,7 +38,7 @@ Attach any screenshots or log output that may help diagnose the issue.
 
 - **OS**: (e.g., macOS 15.3, Windows 11, Ubuntu 24.04)
 - **VS Code version**: (e.g., 1.96.0)
-- **Git Graph+ version**: (e.g., 0.1.0)
+- **Git Graph YZC version**: (e.g., 0.1.0)
 - **Git version**: (e.g., 2.43.0)
 - **Node.js version** (optional): (e.g., 20.11.0)
 

@@ -14,7 +14,7 @@ assignees: []
 
 문제가 발생한 과정을 단계별로 작성해주세요.
 
-1. Git Graph+를 열고
+1. Git Graph YZC를 열고
 2.
 3.
 
@@ -38,7 +38,7 @@ assignees: []
 
 - **OS**: (예: macOS 15.3, Windows 11, Ubuntu 24.04)
 - **VS Code 버전**: (예: 1.96.0)
-- **Git Graph+ 버전**: (예: 0.1.0)
+- **Git Graph YZC 버전**: (예: 0.1.0)
 - **Git 버전**: (예: 2.43.0)
 - **Node.js 버전** (선택): (예: 20.11.0)
 

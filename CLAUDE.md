@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Git Graph Plus is a VS Code extension that provides a full-featured Git GUI — commit graph visualization, branch/tag/stash/worktree management, diff viewer, and more. It uses a **two-process architecture**: a Node.js extension host (backend) and a Svelte 5 webview (frontend).
+Git Graph YZC is a Cursor extension published through Open VSX that provides a full-featured Git GUI — commit graph visualization, branch/tag/stash/worktree management, diff viewer, and more. It uses a **two-process architecture**: a Node.js extension host (backend) and a Svelte 5 webview (frontend).
 
 ## Build & Development Commands
 
@@ -88,10 +88,10 @@ All communication is via `postMessage` / `onDidReceiveMessage`. Message types ar
 - `vscode` is an external dependency (not bundled) — provided by the VS Code runtime.
 - **`git/` modules stay free of any `vscode` import** so GitService and parsers remain unit-testable against the real git CLI. Anything vscode-aware (settings, the built-in git extension API) lives in `extension.ts`/`panels/` or a dedicated bridge (`vscode-git-bridge.ts`) and is injected in (e.g. `setGitBinaryPath`).
 - **Guard rapid async with `utils/sequence-guard.ts`** (`SequenceGuard`): `issue()` a ticket before a request, and only apply the result if the ticket `isCurrent()` after the await — prevents a late-finishing older request (rapid clicks on different commits/files) from overwriting a newer one.
-- User-facing settings live under the `gitGraphPlus.*` namespace and are read via `utils/config.ts` (e.g. `timeout` seconds → `GitService.setDefaultTimeout`, initial/load-more commit counts). Add new settings to `package.json` `contributes.configuration` and read them through there.
+- User-facing settings live under the `gitGraphYzc.*` namespace and are read via `utils/config.ts` (e.g. `timeout` seconds → `GitService.setDefaultTimeout`, initial/load-more commit counts). Add new settings to `package.json` `contributes.configuration` and read them through there.
 - The extension activates on `onStartupFinished`; on activation it discovers repos in the workspace and is a no-op when none exist.
 - Tests use **Vitest**, split into two projects in `vitest.config.mts`:
   - `backend` — extension-host code (`src/**/*.test.ts`), node env, runs against the **real `git` CLI**. Integration tests in `src/git/__tests__/integration/` spawn real git/git-flow/git-lfs and use a 30s timeout.
   - `webview` — Svelte components/stores (`webview-ui/src/**/*.test.ts`), happy-dom env.
   - `npm test` runs both. Coverage is uploaded to Codecov; vscode-bound modules (`extension.ts`, `panels/`, canvas/shiki webview code) are excluded from the % — see the comments in `vitest.config.mts`.
-- Staging, committing, and inline blame are intentionally delegated to VS Code's built-in Source Control; Git Graph+ focuses on everything else.
+- Staging, committing, and inline blame are intentionally delegated to VS Code's built-in Source Control; Git Graph YZC focuses on everything else.

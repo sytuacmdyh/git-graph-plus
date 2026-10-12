@@ -20,6 +20,7 @@ vitest.config.mts
 coverage/**
 test-results.xml
 CLAUDE.md
+PUBLISHING.md
 .gitignore
 **/*.map
 resources/*.gif

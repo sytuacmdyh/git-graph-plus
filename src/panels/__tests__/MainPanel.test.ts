@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // MainPanel hosts the webview and routes ~80 message types to GitService. We
@@ -106,7 +107,7 @@ const filterStorage = {
   update: vi.fn(async (key: string, value: unknown) => { filterValues.set(key, value); }),
   keys: () => [...filterValues.keys()],
 } as unknown as import('vscode').Memento;
-const filterKey = (repo = '/repo') => `gitGraphPlus.repoFilters.v1:${repo}`;
+const filterKey = (repo = '/repo') => `gitGraphYzc.repoFilters.v1:${repo}`;
 
 function reopenPanel(repo = '/repo', restart = false) {
   (MainPanel.currentPanel as unknown as { dispose(): void }).dispose();

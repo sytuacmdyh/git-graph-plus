@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as vscode from 'vscode';
 import { GitService } from '../git/git-service';
 import type { RemoteInfo, BranchInfo } from '../git/types';
@@ -107,7 +108,7 @@ class RemoteBranchItem extends vscode.TreeItem {
     this.tooltip = branch.name;
 
     this.command = {
-      command: 'gitGraphPlus.showRemoteBranchMenu',
+      command: 'gitGraphYzc.showRemoteBranchMenu',
       title: 'Show Remote Branch Menu',
       arguments: [{ branch: this.branch }],
     };

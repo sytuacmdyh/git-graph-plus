@@ -1,3 +1,4 @@
+// Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as vscode from 'vscode';
 import { GitService } from '../git/git-service';
 import type { TagInfo } from '../git/types';
@@ -54,7 +55,7 @@ class TagItem extends vscode.TreeItem {
     this.tooltip = tag.message ? `${tag.name}: ${tag.message}` : tag.name;
 
     this.command = {
-      command: 'gitGraphPlus.showTagMenu',
+      command: 'gitGraphYzc.showTagMenu',
       title: 'Show Tag Menu',
       arguments: [{ tag: this.tag }],
     };

@@ -1,0 +1,16 @@
+Git Graph YZC
+
+Derived from Git Graph Plus:
+https://github.com/the0807/git-graph-plus
+Original copyright: Copyright 2026 the0807, bkk21
+Original source license: Apache License, Version 2.0 (see LICENSE).
+
+This independently maintained distribution is published by sytuacmdyh.
+Modifications include filtered branch bulk selection, persistent per-repository
+filters, independent extension/command/view/settings identifiers, and an
+Open VSX-only release workflow for Cursor.
+
+The extension icon is derived from Microsoft VS Code Codicons:
+https://github.com/microsoft/vscode-codicons
+Licensed under Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
