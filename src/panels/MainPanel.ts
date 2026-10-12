@@ -23,12 +23,16 @@ import {
 } from '../utils/path-validation';
 import { SequenceGuard } from '../utils/sequence-guard';
 import { resolveDefaultWorktreePath } from '../utils/worktree-path';
+import { RepoFilterState } from '../services/repo-filter-state';
 
 export class MainPanel {
   public static currentPanel: MainPanel | undefined;
   private static readonly viewType = 'gitGraphPlus';
-  private static savedRemoteFilter: string[] | undefined = undefined;
-  private static savedBranchFilter: string[] | undefined = undefined;
+  private static filterState = new RepoFilterState();
+
+  public static setFilterStorage(storage: vscode.Memento): void {
+    this.filterState = new RepoFilterState(storage);
+  }
   private static extraEnv: Record<string, string> | undefined = undefined;
   // Shared across panels in this extension host. The on-disk cache lives under
   // globalStorage so every VS Code window reuses the same avatars instead of
@@ -44,9 +48,11 @@ export class MainPanel {
   private disposables: vscode.Disposable[] = [];
   private allConflictFiles: string[] = [];
   private currentLimit = 1000;
-  private currentRemoteFilter: string[] | undefined = undefined;
-  private currentBranchFilter: string[] | undefined = undefined;
-  private isFirstGetLog = true;
+  private currentRemoteFilter: string[] = [];
+  private currentBranchFilter: string[] = [];
+  private repoGeneration = 0;
+  private filtersNeedValidation = false;
+  private filterRestore: Promise<void> | null = null;
   private logSequence = 0;
   private searchSequence = 0;
   // Two independent guards: selecting a commit (loads its file list) and
@@ -194,6 +200,7 @@ export class MainPanel {
     this.extensionUri = extensionUri;
     this.repoPath = repoPath;
     this.gitService = this.createGitService(repoPath);
+    this.loadFilters();
 
     this.fileWatcher = new FileWatcher(repoPath, (what) => {
       this.onRepoChanged(what);
@@ -330,6 +337,45 @@ export class MainPanel {
     await this.refreshAll();
   }
 
+  private loadFilters(): void {
+    const filters = MainPanel.filterState.get(this.repoPath);
+    this.currentBranchFilter = filters.branches;
+    this.currentRemoteFilter = filters.remoteFilter;
+    this.filtersNeedValidation = filters.branches.length > 0 || filters.remoteFilter.length > 0;
+    this.filterRestore = null;
+  }
+
+  private saveFilters(): void {
+    MainPanel.filterState.set(this.repoPath, {
+      branches: this.currentBranchFilter,
+      remoteFilter: this.currentRemoteFilter,
+    });
+  }
+
+  /** Initial getLog and early watcher refreshes share one validated restore. */
+  private async restoreFilters(): Promise<void> {
+    if (this.filterRestore) return this.filterRestore;
+    if (!this.filtersNeedValidation) return;
+    const generation = this.repoGeneration;
+    const gitService = this.gitService;
+    this.filterRestore = (async () => {
+      const [branches, remotes] = await Promise.all([gitService.branches(), gitService.remotes()]);
+      if (generation !== this.repoGeneration || this.disposed) return;
+      const sources = new Set(['local', ...remotes.map(remote => remote.name)]);
+      this.currentRemoteFilter = this.currentRemoteFilter.filter(source => sources.has(source));
+      const available = new Set(branches
+        .filter(branch => !branch.remote || (branch.name !== `${branch.remote}/HEAD` && branch.name !== branch.remote))
+        .filter(branch => this.currentRemoteFilter.length === 0 || this.currentRemoteFilter.includes(branch.remote ?? 'local'))
+        .map(branch => branch.name));
+      this.currentBranchFilter = this.currentBranchFilter.filter(name => available.has(name));
+      this.filtersNeedValidation = false;
+      this.saveFilters();
+    })().finally(() => {
+      if (generation === this.repoGeneration) this.filterRestore = null;
+    });
+    return this.filterRestore;
+  }
+
   /**
    * Point the panel at a different repo: rebuild the GitService, reset
    * repo-specific state, swap the file watcher, and notify the sidebar. Callers
@@ -342,13 +388,13 @@ export class MainPanel {
    * stale response paint the previous repo's graph over the current one.
    */
   private swapRepo(newPath: string): void {
+    this.repoGeneration++;
+    this.logSequence++;
     this.repoPath = newPath;
     this.gitService = this.createGitService(newPath);
 
     this.allConflictFiles = [];
-    this.isFirstGetLog = true;
-    this.currentRemoteFilter = undefined;
-    this.currentBranchFilter = undefined;
+    this.loadFilters();
 
     const oldWatcher = this.fileWatcher;
     oldWatcher.dispose();
@@ -398,31 +444,32 @@ export class MainPanel {
   }
 
   private async handleMessage(message: WebviewMessage): Promise<void> {
+    const generation = this.repoGeneration;
+    let logSequence: number | undefined;
     try {
       switch (message.type) {
         case 'getLog': {
+          logSequence = ++this.logSequence;
+          const gitService = this.gitService;
+          await this.restoreFilters();
+          if (generation !== this.repoGeneration || logSequence !== this.logSequence || this.disposed) break;
           const cfg = vscode.workspace.getConfiguration('gitGraphPlus');
           const sortOrder = cfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
           const includeSignature = cfg.get<boolean>('showSignatureStatus', true);
           const requestedLimit = message.payload.limit ?? readInitialCommitCount();
           this.currentLimit = requestedLimit;
-          // On first load, apply saved filter if the webview didn't specify one.
-          const effectiveFilter = this.isFirstGetLog && message.payload.remoteFilter === undefined
-            ? MainPanel.savedRemoteFilter
-            : message.payload.remoteFilter;
-          const effectiveBranchFilter = this.isFirstGetLog && message.payload.branches === undefined
-            ? MainPanel.savedBranchFilter
-            : message.payload.branches;
-          this.isFirstGetLog = false;
+          // Omitted filters preserve the restored state; explicit [] means All.
+          const effectiveFilter = message.payload.remoteFilter ?? this.currentRemoteFilter;
+          const effectiveBranchFilter = message.payload.branches ?? this.currentBranchFilter;
           this.currentRemoteFilter = effectiveFilter;
           this.currentBranchFilter = effectiveBranchFilter;
+          this.saveFilters();
           const logPayload = { ...message.payload, remoteFilter: effectiveFilter, branches: effectiveBranchFilter, limit: requestedLimit + 1, sortOrder, includeSignature };
-          const seq = ++this.logSequence;
           const [allFetched, logBranches] = await Promise.all([
-            this.gitService.log(logPayload),
-            this.gitService.branches(),
+            gitService.log(logPayload),
+            gitService.branches(),
           ]);
-          if (seq !== this.logSequence) break;
+          if (generation !== this.repoGeneration || logSequence !== this.logSequence || this.disposed) break;
           const hasMore = allFetched.length > requestedLimit;
           const commits = hasMore ? allFetched.slice(0, requestedLimit) : allFetched;
           const branchColorResolver = this.makeBranchColorResolver();
@@ -454,6 +501,7 @@ export class MainPanel {
             this.gitService.stashList(),
             this.gitService.worktreeList(),
           ]);
+          if (generation !== this.repoGeneration || this.disposed) break;
           this.post({
             type: 'branchData',
             payload: { branches, tags, remotes, stashes, worktrees },
@@ -1577,6 +1625,7 @@ export class MainPanel {
           break;
       }
     } catch (err: unknown) {
+      if (generation !== this.repoGeneration || (logSequence !== undefined && logSequence !== this.logSequence) || this.disposed) return;
       // Use stderr directly for GitError (cleaner than the full "git xxx failed (exit N): ..." message)
       const errorMessage = err instanceof GitError ? formatGitError(err.stderr) : err instanceof Error ? err.message : String(err);
 
@@ -1773,23 +1822,22 @@ export class MainPanel {
     }
     this.refreshing = true;
     this.refreshQueued = false;
+    const generation = this.repoGeneration;
+    const sequence = this.logSequence;
+    const gitService = this.gitService;
+    const isCurrent = () => !this.disposed && generation === this.repoGeneration && sequence === this.logSequence;
     // Watcher events caused by the same git operation that triggered this refresh
     // would arrive ~immediately after; absorb them so they don't fire a second pass.
     this.fileWatcher.suppress();
     try {
+      await this.restoreFilters();
+      if (!isCurrent()) return;
       const refreshCfg = vscode.workspace.getConfiguration('gitGraphPlus');
       const sortOrder = refreshCfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
       const includeSignature = refreshCfg.get<boolean>('showSignatureStatus', true);
       const refreshLimit = this.currentLimit || readInitialCommitCount();
-      // Until the webview's first getLog establishes this session's filter,
-      // mirror the saved filter that getLog will apply (same logic as the
-      // getLog handler). Otherwise an early refresh — triggered by the file
-      // watcher, a repo auto-switch, or a config change before that first
-      // getLog — renders the full *unfiltered* graph (all branches/remotes),
-      // which the filtered getLog then corrects: a visible flash of a tangled,
-      // repo-unrelated "demo"-looking graph.
-      const remoteFilter = this.isFirstGetLog ? MainPanel.savedRemoteFilter : this.currentRemoteFilter;
-      const branchFilter = this.isFirstGetLog ? MainPanel.savedBranchFilter : this.currentBranchFilter;
+      const remoteFilter = [...this.currentRemoteFilter];
+      const branchFilter = [...this.currentBranchFilter];
       const logArgs = { limit: refreshLimit + 1, sortOrder, remoteFilter, branches: branchFilter, includeSignature };
 
       const buildLogData = (allFetched: Awaited<ReturnType<typeof this.gitService.log>>, branches: Awaited<ReturnType<typeof this.gitService.branches>>) => {
@@ -1798,26 +1846,28 @@ export class MainPanel {
         // Handle empty repository (0 commits) gracefully. The webview renders from
         // paths/links/dots; the legacy GraphNode[] is unused so we don't build it.
         const fg = allCommits.length > 0 ? buildFullGraph(allCommits, branches, this.makeBranchColorResolver()) : { paths: [], links: [], dots: [], commitLeftMargin: [] };
-        return { commits: allCommits, hasMore, currentLimit: this.currentLimit, graph: [], paths: fg.paths, links: fg.links, dots: fg.dots, commitLeftMargin: fg.commitLeftMargin, remoteFilter, branches: branchFilter };
+        return { commits: allCommits, hasMore, currentLimit: refreshLimit, graph: [], paths: fg.paths, links: fg.links, dots: fg.dots, commitLeftMargin: fg.commitLeftMargin, remoteFilter, branches: branchFilter };
       };
 
       if (scope === 'status') {
         // branches is still needed to colour the graph, but the rest of the ref
         // data and the sidebar can't have changed from a working-tree edit.
         const [allFetched, branches] = await Promise.all([
-          this.gitService.log(logArgs),
-          this.gitService.branches(),
+          gitService.log(logArgs),
+          gitService.branches(),
         ]);
+        if (!isCurrent()) return;
         this.post({ type: 'logData', payload: buildLogData(allFetched, branches) });
       } else {
         const [allFetched, branches, tags, remotes, stashes, worktrees] = await Promise.all([
-          this.gitService.log(logArgs),
-          this.gitService.branches(),
-          this.gitService.tags(),
-          this.gitService.remotes(),
-          this.gitService.stashList(),
-          this.gitService.worktreeList(),
+          gitService.log(logArgs),
+          gitService.branches(),
+          gitService.tags(),
+          gitService.remotes(),
+          gitService.stashList(),
+          gitService.worktreeList(),
         ]);
+        if (!isCurrent()) return;
         // Send as single combined message to ensure atomic update
         this.post({
           type: 'fullRefresh',
@@ -1829,6 +1879,7 @@ export class MainPanel {
         MainPanel.onSidebarRefresh?.();
       }
     } catch (err) {
+      if (!isCurrent()) return;
       console.warn('Git Graph+: refresh failed:', err instanceof Error ? err.message : err);
       if (err instanceof GitError && /not a git repository/.test(err.stderr)) {
         try { this.post({ type: 'notGitRepo' }); } catch { /* panel disposed */ }
@@ -1997,8 +2048,6 @@ export class MainPanel {
 
   private dispose(): void {
     this.disposed = true;
-    MainPanel.savedRemoteFilter = this.currentRemoteFilter;
-    MainPanel.savedBranchFilter = this.currentBranchFilter;
     // Drop any modal request that was queued for this panel but never delivered
     // (panel closed before the webview was ready). A fresh panel opened later
     // for an unrelated reason should not surface a stale modal.

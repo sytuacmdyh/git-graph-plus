@@ -330,6 +330,73 @@ describe('SearchBar — branch filter', () => {
     await fireEvent.click(items[0]);
     expect(onBranchFilterChange).toHaveBeenCalledWith([]);
   });
+
+  it('selects all query matches once, retaining previous selections and the open search', async () => {
+    const onBranchFilterChange = vi.fn();
+    const { container } = render(SearchBar, {
+      ...baseProps, branches, branchFilter: ['feature/login', 'main'], onBranchFilterChange,
+    });
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    const search = container.querySelector<HTMLInputElement>('.branch-search-input')!;
+    await fireEvent.input(search, { target: { value: ' MAIN ' } });
+    await fireEvent.click(container.querySelector('.select-filtered-branches')!);
+    expect(onBranchFilterChange).toHaveBeenCalledTimes(1);
+    expect(onBranchFilterChange).toHaveBeenCalledWith(['feature/login', 'main', 'origin/main']);
+    expect(container.querySelector('.branch-dropdown')).toBeTruthy();
+    expect(search.value).toBe(' MAIN ');
+  });
+
+  it('with an empty query selects every visible branch, excluding remote symbolic refs', async () => {
+    const onBranchFilterChange = vi.fn();
+    const { container } = render(SearchBar, {
+      ...baseProps, branches: [...branches, { name: 'origin', remote: 'origin', current: false, ahead: 0, behind: 0, hash: 'h' }],
+      onBranchFilterChange,
+    });
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    await fireEvent.click(container.querySelector('.select-filtered-branches')!);
+    expect(onBranchFilterChange).toHaveBeenCalledWith(['main', 'feature/login', 'origin/main']);
+  });
+
+  it.each([
+    { sources: ['local'], expected: ['main', 'feature/login'] },
+    { sources: ['origin'], expected: ['origin/main'] },
+    { sources: ['local', 'upstream'], expected: ['main', 'feature/login', 'upstream/main'] },
+    { sources: [], expected: ['main', 'feature/login', 'origin/main', 'upstream/main'] },
+  ])('bulk selection follows Local/Remote sources: $sources', async ({ sources, expected }) => {
+    const onBranchFilterChange = vi.fn();
+    const { container } = render(SearchBar, {
+      ...baseProps,
+      branches: [...branches, { name: 'upstream/main', remote: 'upstream', current: false, ahead: 0, behind: 0, hash: 'h' }],
+      remoteFilter: sources, onBranchFilterChange,
+    });
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    await fireEvent.click(container.querySelector('.select-filtered-branches')!);
+    expect(onBranchFilterChange).toHaveBeenCalledWith(expected);
+  });
+
+  it('disables bulk selection when no branches match and re-enables it when matches return', async () => {
+    const onBranchFilterChange = vi.fn();
+    const { container } = render(SearchBar, { ...baseProps, branches, branchFilter: ['main'], onBranchFilterChange });
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    const search = container.querySelector<HTMLInputElement>('.branch-search-input')!;
+    const bulk = container.querySelector<HTMLButtonElement>('.select-filtered-branches')!;
+    await fireEvent.input(search, { target: { value: 'feature' } });
+    expect(bulk.disabled).toBe(false);
+    await fireEvent.input(search, { target: { value: 'missing' } });
+    expect(bulk.disabled).toBe(true);
+    await fireEvent.input(search, { target: { value: 'feature/login' } });
+    expect(bulk.disabled).toBe(false);
+    await fireEvent.click(bulk);
+    expect(onBranchFilterChange).toHaveBeenCalledWith(['main', 'feature/login']);
+  });
+
+  it('disables bulk selection when every visible branch is already selected', async () => {
+    const { container } = render(SearchBar, {
+      ...baseProps, branches, branchFilter: ['main', 'feature/login', 'origin/main'],
+    });
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    expect(container.querySelector<HTMLButtonElement>('.select-filtered-branches')!.disabled).toBe(true);
+  });
 });
 
 describe('SearchBar — jump to HEAD button', () => {

@@ -293,6 +293,7 @@ export const en: Record<string, string> = {
   'search.branchFilter': 'Branch',
   'search.branchFilterTooltip': 'Filter by specific branch',
   'search.allBranches': 'All',
+  'search.selectFilteredBranches': 'Select all filtered branches',
   'search.filterBranches': 'Search',
 
   // Activity log

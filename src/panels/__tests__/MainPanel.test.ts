@@ -100,6 +100,19 @@ import { MainPanel } from '../MainPanel';
 import { GitError } from '../../git/git-service';
 
 const extUri = { fsPath: '/ext' } as unknown as import('vscode').Uri;
+const filterValues = new Map<string, unknown>();
+const filterStorage = {
+  get: vi.fn((key: string) => filterValues.get(key)),
+  update: vi.fn(async (key: string, value: unknown) => { filterValues.set(key, value); }),
+  keys: () => [...filterValues.keys()],
+} as unknown as import('vscode').Memento;
+const filterKey = (repo = '/repo') => `gitGraphPlus.repoFilters.v1:${repo}`;
+
+function reopenPanel(repo = '/repo', restart = false) {
+  (MainPanel.currentPanel as unknown as { dispose(): void }).dispose();
+  if (restart) MainPanel.setFilterStorage(filterStorage);
+  MainPanel.createOrShow(extUri, repo);
+}
 
 function posted() {
   return (H.panel!.webview.postMessage.mock.calls.map(c => c[0])) as Array<{ type: string; payload?: Record<string, unknown> }>;
@@ -128,6 +141,8 @@ beforeEach(() => {
   H.git.fileExistsAtRef.mockResolvedValue(true);
   H.git.getEmptyTreeRef.mockResolvedValue('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
   H.repos = [{ path: '/repo', name: 'repo', type: 'root' }];
+  filterValues.clear();
+  MainPanel.setFilterStorage(filterStorage);
   (MainPanel as unknown as { currentPanel: unknown }).currentPanel = undefined;
   MainPanel.createOrShow(extUri, '/repo');
 });
@@ -392,6 +407,7 @@ describe('MainPanel orchestration logic', () => {
       .mockResolvedValue([commit('bbbbbbb2')] as never);
 
     const pOld = dispatch({ type: 'getLog', payload: {} }); // old repo, in-flight
+    await vi.waitFor(() => expect(H.git.log).toHaveBeenCalledTimes(1));
 
     // Switching must not reset the sequence counter, or the next getLog reuses
     // the same seq number and the stale in-flight response sneaks past the guard.
@@ -410,30 +426,126 @@ describe('MainPanel orchestration logic', () => {
   });
 
   it('refreshAll applies the saved filter before the first getLog so it does not flash the full unfiltered graph', async () => {
-    const M = MainPanel as unknown as { savedRemoteFilter?: string[]; savedBranchFilter?: string[] };
-    const prevRemote = M.savedRemoteFilter;
-    const prevBranch = M.savedBranchFilter;
-    M.savedRemoteFilter = ['origin'];
-    M.savedBranchFilter = ['main'];
-    try {
-      H.git.log.mockResolvedValue([commit('aaaaaaa1')] as never);
-
-      // An early refresh (file watcher / repo auto-switch / config change) can
-      // fire before the webview's first getLog establishes the session filter.
-      await (MainPanel.currentPanel as unknown as { refreshAll(): Promise<void> }).refreshAll();
-
-      const logArgs = H.git.log.mock.calls.at(-1)![0] as { remoteFilter?: unknown; branches?: unknown };
-      expect(logArgs.remoteFilter).toEqual(['origin']);
-      expect(logArgs.branches).toEqual(['main']);
-
-      // The graph payload must carry the same filter the webview will keep.
-      const refresh = postedOfType('fullRefresh').at(-1)!;
-      const logData = (refresh.payload as { logData: { remoteFilter?: unknown; branches?: unknown } }).logData;
-      expect(logData.remoteFilter).toEqual(['origin']);
-      expect(logData.branches).toEqual(['main']);
-    } finally {
-      M.savedRemoteFilter = prevRemote;
-      M.savedBranchFilter = prevBranch;
+    filterValues.set(filterKey(), { branches: ['origin/main'], remoteFilter: ['origin'] });
+    H.git.branches.mockResolvedValue([{ name: 'origin/main', remote: 'origin' }]);
+    H.git.remotes.mockResolvedValue([{ name: 'origin' }]);
+    reopenPanel('/repo', true);
+    // An early refresh and the initial request must both use restored filters.
+    await MainPanel.currentPanel!.postRefresh();
+    await dispatch({ type: 'getLog', payload: {} });
+    for (const call of H.git.log.mock.calls) {
+      expect(call[0]).toMatchObject({ remoteFilter: ['origin'], branches: ['origin/main'] });
     }
+    const refresh = postedOfType('fullRefresh').at(-1)!;
+    expect(refresh.payload!.logData).toMatchObject({ remoteFilter: ['origin'], branches: ['origin/main'] });
+  });
+});
+
+describe('MainPanel — persistent repository filters', () => {
+  it('keeps filters when loading more without resending the selection', async () => {
+    await dispatch({ type: 'getLog', payload: { branches: ['origin/main'], remoteFilter: ['origin'] } });
+    await dispatch({ type: 'getLog', payload: { limit: 200 } });
+    expect(H.git.log.mock.calls.at(-1)![0]).toMatchObject({ branches: ['origin/main'], remoteFilter: ['origin'], limit: 201 });
+    expect(postedOfType('logData').at(-1)!.payload).toMatchObject({ branches: ['origin/main'], remoteFilter: ['origin'] });
+  });
+
+  it.each([false, true])('restores selections after reopening (restart=%s)', async restart => {
+    H.git.branches.mockResolvedValue([{ name: 'origin/main', remote: 'origin' }]);
+    H.git.remotes.mockResolvedValue([{ name: 'origin' }]);
+    await dispatch({ type: 'getLog', payload: { branches: ['origin/main'], remoteFilter: ['origin'] } });
+    // Saved while the panel is still open, without relying on disposal.
+    await vi.waitFor(() => expect(filterValues.get(filterKey())).toEqual({ branches: ['origin/main'], remoteFilter: ['origin'] }));
+    reopenPanel('/repo', restart);
+    H.git.log.mockClear();
+    await dispatch({ type: 'getLog', payload: {} });
+    expect(H.git.log).toHaveBeenCalledTimes(1);
+    expect(H.git.log.mock.calls[0][0]).toMatchObject({ branches: ['origin/main'], remoteFilter: ['origin'] });
+    expect(postedOfType('logData').at(-1)!.payload).toMatchObject({ branches: ['origin/main'], remoteFilter: ['origin'] });
+  });
+
+  it('remembers each repository independently and restores when switching back', async () => {
+    H.repos.push({ path: '/repo-b', name: 'b', type: 'nested' });
+    H.git.branches.mockResolvedValue([{ name: 'main' }, { name: 'dev' }]);
+    await dispatch({ type: 'getRepoList' });
+    await dispatch({ type: 'getLog', payload: { branches: ['main'], remoteFilter: ['local'] } });
+    await dispatch({ type: 'switchRepo', payload: { path: '/repo-b' } });
+    expect(postedOfType('fullRefresh').at(-1)!.payload!.logData).toMatchObject({ branches: [], remoteFilter: [] });
+    await dispatch({ type: 'getLog', payload: { branches: ['dev'], remoteFilter: [] } });
+    await dispatch({ type: 'switchRepo', payload: { path: '/repo' } });
+    expect(H.git.log.mock.calls.at(-1)![0]).toMatchObject({ branches: ['main'], remoteFilter: ['local'] });
+    await dispatch({ type: 'switchRepo', payload: { path: '/repo-b' } });
+    expect(H.git.log.mock.calls.at(-1)![0]).toMatchObject({ branches: ['dev'], remoteFilter: [] });
+  });
+
+  it('persists explicit All after a repository-switch refresh', async () => {
+    filterValues.set(filterKey('/repo-b'), { branches: ['main'], remoteFilter: ['local'] });
+    H.repos.push({ path: '/repo-b', name: 'b', type: 'nested' });
+    H.git.branches.mockResolvedValue([{ name: 'main' }]);
+    await dispatch({ type: 'getRepoList' });
+    await dispatch({ type: 'switchRepo', payload: { path: '/repo-b' } });
+    await dispatch({ type: 'getLog', payload: { branches: [], remoteFilter: [] } });
+    await vi.waitFor(() => expect(filterValues.get(filterKey('/repo-b'))).toEqual({ branches: [], remoteFilter: [] }));
+    reopenPanel('/repo-b', true);
+    await dispatch({ type: 'getLog', payload: {} });
+    expect(H.git.log.mock.calls.at(-1)![0]).toMatchObject({ branches: [], remoteFilter: [] });
+  });
+
+  it.each([
+    { saved: ['main', 'deleted', 'origin/main', 'origin/HEAD'], sources: ['local', 'removed'], expected: ['main'], expectedSources: ['local'] },
+    { saved: ['deleted'], sources: ['origin'], expected: [], expectedSources: ['origin'] },
+    { saved: ['main'], sources: ['removed'], expected: ['main'], expectedSources: [] },
+    { saved: ['deleted'], sources: ['removed'], expected: [], expectedSources: [] },
+  ])('cleans stale saved selections: $saved / $sources', async ({ saved, sources, expected, expectedSources }) => {
+    filterValues.set(filterKey(), { branches: saved, remoteFilter: sources });
+    H.git.branches.mockResolvedValue([{ name: 'main' }, { name: 'origin/main', remote: 'origin' }, { name: 'origin/HEAD', remote: 'origin' }]);
+    H.git.remotes.mockResolvedValue([{ name: 'origin' }]);
+    reopenPanel('/repo', true);
+    await dispatch({ type: 'getLog', payload: {} });
+    expect(H.git.log.mock.calls.at(-1)![0]).toMatchObject({ branches: expected, remoteFilter: expectedSources });
+    await vi.waitFor(() => expect(filterValues.get(filterKey())).toEqual({ branches: expected, remoteFilter: expectedSources }));
+  });
+
+  it('discards a refresh that finishes after a newer selection', async () => {
+    let resolveOld!: (value: unknown[]) => void;
+    H.git.log.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+    const oldRefresh = MainPanel.currentPanel!.postRefresh();
+    await vi.waitFor(() => expect(H.git.log).toHaveBeenCalledTimes(1));
+    await dispatch({ type: 'getLog', payload: { branches: ['main'], remoteFilter: [] } });
+    resolveOld([]);
+    await oldRefresh;
+    expect(postedOfType('fullRefresh')).toHaveLength(0);
+    expect(postedOfType('logData').at(-1)!.payload!.branches).toEqual(['main']);
+  });
+
+  it('discards a refresh from an old repository and runs the queued refresh for the new one', async () => {
+    H.repos.push({ path: '/repo-b', name: 'b', type: 'nested' });
+    await dispatch({ type: 'getRepoList' });
+    let resolveOld!: (value: unknown[]) => void;
+    H.git.log.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+    const oldRefresh = MainPanel.currentPanel!.postRefresh();
+    await vi.waitFor(() => expect(H.git.log).toHaveBeenCalledTimes(1));
+    await dispatch({ type: 'switchRepo', payload: { path: '/repo-b' } });
+    H.git.log.mockResolvedValue([commit('bbbbbbb2')]);
+    resolveOld([commit('aaaaaaa1')]);
+    await oldRefresh;
+    await vi.waitFor(() => expect(postedOfType('fullRefresh')).toHaveLength(1));
+    const logData = postedOfType('fullRefresh')[0].payload!.logData as { commits: Array<{ hash: string }> };
+    expect(logData.commits.map(c => c.hash)).toEqual(['bbbbbbb2']);
+  });
+
+  it('discards restoration still in flight after switching repositories', async () => {
+    filterValues.set(filterKey(), { branches: ['main'], remoteFilter: [] });
+    H.repos.push({ path: '/repo-b', name: 'b', type: 'nested' });
+    reopenPanel('/repo', true);
+    await dispatch({ type: 'getRepoList' });
+    let resolveBranches!: (value: unknown[]) => void;
+    H.git.branches.mockImplementationOnce(() => new Promise(resolve => { resolveBranches = resolve; }));
+    const oldLog = dispatch({ type: 'getLog', payload: {} });
+    await dispatch({ type: 'switchRepo', payload: { path: '/repo-b' } });
+    resolveBranches([{ name: 'main' }]);
+    await oldLog;
+    expect(H.git.log).toHaveBeenCalledTimes(1);
+    expect(H.git.log.mock.calls[0][0]).toMatchObject({ branches: [], remoteFilter: [] });
+    expect(filterValues.get(filterKey())).toEqual({ branches: ['main'], remoteFilter: [] });
   });
 });

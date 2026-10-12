@@ -27,6 +27,7 @@ export interface ModalDefaults {
 
 // Messages from Webview → Extension
 export type WebviewMessage =
+  // Omitted filter arrays retain the current/restored selection; [] selects All.
   | { type: 'getLog'; payload: { branch?: string; branches?: string[]; limit?: number; skip?: number; remoteFilter?: string[] } }
   | { type: 'getBranches' }
   | { type: 'getRepoList' }

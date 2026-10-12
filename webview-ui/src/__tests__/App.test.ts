@@ -1347,6 +1347,55 @@ describe('App — filter change handlers', () => {
     return msgs.length ? (msgs[msgs.length - 1].data as { payload: Record<string, unknown> }).payload : null;
   }
 
+  it('bulk-selects query matches with restored selections and sources in a single getLog', async () => {
+    const { container } = render(App);
+    postMsg('branchData', {
+      branches: [
+        { name: 'feature', current: true, ahead: 0, behind: 0, hash: 'h1' },
+        { name: 'origin/main', remote: 'origin', current: false, ahead: 0, behind: 0, hash: 'h2' },
+        { name: 'origin/feature', remote: 'origin', current: false, ahead: 0, behind: 0, hash: 'h3' },
+      ],
+      tags: [], remotes: [{ name: 'origin', fetchUrl: '', pushUrl: '' }], stashes: [], worktrees: [],
+    });
+    postMsg('logData', {
+      commits: [], graph: [], hasMore: false, currentLimit: 100,
+      branches: ['origin/main'], remoteFilter: ['origin'],
+    });
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    const main = Array.from(container.querySelectorAll<HTMLButtonElement>('.dd-item'))
+      .find(el => el.textContent?.trim() === 'origin/main')!;
+    expect(main.querySelector<HTMLInputElement>('input')!.checked).toBe(true);
+    const search = container.querySelector<HTMLInputElement>('.branch-search-input')!;
+    await fireEvent.input(search, { target: { value: 'feature' } });
+    globalThis.__postedMessages = [];
+    await fireEvent.click(container.querySelector('.select-filtered-branches')!);
+    const logs = globalThis.__postedMessages.filter(m => (m.data as { type: string }).type === 'getLog');
+    expect(logs).toHaveLength(1);
+    expect(lastGetLog()).toMatchObject({ branches: ['origin/main', 'origin/feature'], remoteFilter: ['origin'] });
+    expect(container.querySelector('.branch-dropdown')).toBeTruthy();
+    expect(search.value).toBe('feature');
+    expect(container.querySelector<HTMLButtonElement>('.select-filtered-branches')!.disabled).toBe(true);
+
+    // All explicitly clears the remembered branches while retaining sources.
+    const all = Array.from(container.querySelectorAll<HTMLButtonElement>('.dd-item'))
+      .find(el => el.textContent?.trim() === 'All')!;
+    await fireEvent.click(all);
+    expect(lastGetLog()).toMatchObject({ branches: [], remoteFilter: ['origin'] });
+  });
+
+  it('empty filters in a repository refresh clear restored selections and sources', async () => {
+    const { container } = render(App);
+    postMsg('logData', { commits: [], graph: [], hasMore: false, branches: ['main'], remoteFilter: ['local'] });
+    await waitFor(() => expect(container.querySelectorAll('.filter-count')).toHaveLength(2));
+    postMsg('fullRefresh', {
+      logData: { commits: [], graph: [], hasMore: false, branches: [], remoteFilter: [] },
+      branchData: { branches: [], tags: [], remotes: [], stashes: [], worktrees: [] },
+    });
+    await waitFor(() => expect(container.querySelectorAll('.filter-count')).toHaveLength(0));
+    await fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.filter-btn')[1]);
+    expect(container.querySelector<HTMLInputElement>('.dd-item input')!.checked).toBe(true);
+  });
+
   it('selecting a branch in the branch filter posts getLog with that branch', async () => {
     const { container } = render(App);
     postMsg('branchData', {
@@ -1407,8 +1456,8 @@ describe('App — filter change handlers', () => {
       .find(el => el.textContent?.includes('origin'))!;
     await fireEvent.click(remoteItem);
     await waitFor(() => lastGetLog() !== null);
-    // branchFilter emptied → getLog carries no `branches`, only the remote filter.
-    expect(lastGetLog()!.branches).toBeUndefined();
+    // Explicit [] clears the persisted branch filter while keeping the source.
+    expect(lastGetLog()!.branches).toEqual([]);
     expect((lastGetLog()!.remoteFilter as string[])).toContain('origin');
   });
 });

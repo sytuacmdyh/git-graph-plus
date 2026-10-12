@@ -260,8 +260,8 @@ import AmendModal from './components/modals/AmendModal.svelte';
       commitStore.setLoading(true);
       vscode.postMessage({ type: 'getLog', payload: {
         limit: commitStore.currentLimit || undefined,
-        branches: branchFilter.length > 0 ? [...branchFilter] : undefined,
-        remoteFilter: remoteFilter.length > 0 ? [...remoteFilter] : undefined,
+        branches: [...branchFilter],
+        remoteFilter: [...remoteFilter],
       }});
       vscode.postMessage({ type: 'getBranches' });
     }
@@ -315,8 +315,8 @@ import AmendModal from './components/modals/AmendModal.svelte';
       type: 'getLog',
       payload: {
         limit: commitStore.currentLimit || undefined,
-        branches: branchFilter.length > 0 ? [...branchFilter] : undefined,
-        remoteFilter: filter.length > 0 ? [...filter] : undefined,
+        branches: [...branchFilter],
+        remoteFilter: [...filter],
       },
     });
   }
@@ -328,8 +328,8 @@ import AmendModal from './components/modals/AmendModal.svelte';
       type: 'getLog',
       payload: {
         limit: commitStore.currentLimit || undefined,
-        branches: branches.length > 0 ? [...branches] : undefined,
-        remoteFilter: remoteFilter.length > 0 ? [...remoteFilter] : undefined,
+        branches: [...branches],
+        remoteFilter: [...remoteFilter],
       },
     });
   }
@@ -368,8 +368,8 @@ import AmendModal from './components/modals/AmendModal.svelte';
     commitStore.setLoading(true);
     vscode.postMessage({ type: 'getLog', payload: {
       limit: commitStore.currentLimit || undefined,
-      branches: branchFilter.length > 0 ? [...branchFilter] : undefined,
-      remoteFilter: remoteFilter.length > 0 ? [...remoteFilter] : undefined,
+      branches: [...branchFilter],
+      remoteFilter: [...remoteFilter],
     }});
     vscode.postMessage({ type: 'getBranches' });
     vscode.postMessage({ type: 'getRepoList' });

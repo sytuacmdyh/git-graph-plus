@@ -53,6 +53,7 @@ vi.mock('../panels/MainPanel', () => ({
     static currentPanel: unknown = undefined;
     static setExtraEnv = vi.fn();
     static setAvatarCacheDir = vi.fn();
+    static setFilterStorage = vi.fn();
     static createOrShow = vi.fn();
     static showModalWithPanel = vi.fn();
     static onSidebarRefresh: unknown = null;
@@ -73,10 +74,20 @@ void viewStub;
 
 import { activate, resolveConfiguredGitPath } from '../extension';
 import { existsSync } from 'fs';
+import { MainPanel } from '../panels/MainPanel';
 
 function makeContext() {
-  return { subscriptions: [] as Array<{ dispose(): void }>, extensionUri: {} } as unknown as import('vscode').ExtensionContext;
+  return {
+    subscriptions: [] as Array<{ dispose(): void }>, extensionUri: {},
+    workspaceState: { get: vi.fn(), update: vi.fn(async () => {}), keys: () => [] },
+  } as unknown as import('vscode').ExtensionContext;
 }
+
+it('passes workspace persistence to the panel on activation', () => {
+  const context = makeContext();
+  activate(context);
+  expect(MainPanel.setFilterStorage).toHaveBeenCalledWith(context.workspaceState);
+});
 
 beforeEach(() => {
   H.registeredCommands = [];

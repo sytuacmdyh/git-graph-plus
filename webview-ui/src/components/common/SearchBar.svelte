@@ -80,6 +80,19 @@
     onBranchFilterChange(next);
   }
 
+  const filteredBranchNames = $derived([
+    ...filteredByQuery(localBranches),
+    ...Array.from(remoteBranchGroups.values()).flatMap(filteredByQuery),
+  ].map(b => b.name));
+  const canSelectFilteredBranches = $derived(
+    filteredBranchNames.some(name => !branchFilter.includes(name))
+  );
+
+  function selectFilteredBranches() {
+    if (!canSelectFilteredBranches) return;
+    onBranchFilterChange([...new Set([...branchFilter, ...filteredBranchNames])]);
+  }
+
   function clearBranchFilter() {
     branchFilterOpen = false;
     branchQuery = '';
@@ -326,6 +339,14 @@
         <button class="dd-item" class:active={!branchFilterActive} onclick={clearBranchFilter}>
           <input type="checkbox" checked={!branchFilterActive} readonly />
           {t('search.allBranches')}
+        </button>
+        <button
+          class="dd-item select-filtered-branches"
+          disabled={!canSelectFilteredBranches}
+          onclick={selectFilteredBranches}
+        >
+          <i class="codicon codicon-check-all"></i>
+          {t('search.selectFilteredBranches')}
         </button>
         {#if filteredByQuery(localBranches).length > 0}
           <div class="dd-sep"></div>
@@ -627,6 +648,13 @@
 
   .dd-item.active {
     color: var(--text-primary);
+  }
+
+  .dd-item:disabled {
+    opacity: 0.4;
+    cursor: default;
+    background: transparent;
+    color: var(--text-secondary);
   }
 
   input[type="checkbox"] {

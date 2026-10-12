@@ -293,6 +293,7 @@ export const zh: Record<string, string> = {
   'search.branchFilter': 'Branch',
   'search.branchFilterTooltip': '按特定分支筛选',
   'search.allBranches': 'All',
+  'search.selectFilteredBranches': '全选已筛选分支',
   'search.filterBranches': 'Search',
 
   // Activity log

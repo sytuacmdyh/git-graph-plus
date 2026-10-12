@@ -293,6 +293,7 @@ export const ko: Record<string, string> = {
   'search.branchFilter': 'Branch',
   'search.branchFilterTooltip': '특정 브랜치로 필터',
   'search.allBranches': 'All',
+  'search.selectFilteredBranches': '필터링된 브랜치 모두 선택',
   'search.filterBranches': 'Search',
 
   // Activity log
