@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-[English](README.md) · [Cursor 배포 안내](PUBLISHING.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Cursor 배포 안내](PUBLISHING.md)
 
 `sytuacmdyh`가 독립적으로 유지보수하는 [Git Graph Plus](https://github.com/the0807/git-graph-plus)의 포크입니다. 필터링된 브랜치 일괄 선택과 리포지토리별 브랜치/소스 필터 저장을 추가했습니다. Cursor용 Open VSX로 배포하며 명령, 뷰, 설정은 `gitGraphYzc` 네임스페이스를 사용합니다.
 

@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-[한국어](README.ko.md) · [Cursor publishing guide](PUBLISHING.md)
+[简体中文](README.zh-CN.md) · [한국어](README.ko.md) · [Cursor publishing guide](PUBLISHING.md)
 
 An independently maintained fork of [Git Graph Plus](https://github.com/the0807/git-graph-plus) by sytuacmdyh. This fork adds bulk selection of filtered branches and remembers branch/source filters per repository. It is distributed through Open VSX for Cursor. Commands, views, and settings use the separate `gitGraphYzc` namespace.
 
