@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 (2026-10-13)
+
+### Release
+- Publish to Open VSX using Trusted Publishing with short-lived GitHub Actions OIDC credentials.
+- Remove the release workflow's dependency on a personal publishing token and document the trusted publisher configuration.
+
 ## 0.1.3 (2026-10-13)
 
 ### Changes
