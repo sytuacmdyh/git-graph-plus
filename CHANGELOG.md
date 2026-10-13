@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.5 (2026-10-13)
+
+### Features
+- Replace the weekday/hour chart with a GitHub-style daily commit calendar covering the last 365 days.
+- Show all contributors by default and filter the calendar by selecting a contributor.
+- Add localized month labels, daily commit tooltips, and contribution intensity levels.
+
+### Fixes
+- Make toolbar refresh and Ctrl+R reload Stats data when the statistics page is active.
+- Stop the loading indicator on failed statistics requests and provide a retry button.
+
 ## 0.1.4 (2026-10-13)
 
 ### Release
