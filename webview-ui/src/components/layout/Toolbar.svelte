@@ -80,7 +80,8 @@
       if ((msg.type === 'operationComplete' || msg.type === 'error') && uiStore.operating) {
         uiStore.operating = null;
       }
-      if (msg.type === 'logData' && uiStore.operating === 'refresh') {
+      const refreshFinished = uiStore.viewMode === 'stats' ? msg.type === 'statsData' : msg.type === 'logData';
+      if (refreshFinished && uiStore.operating === 'refresh') {
         uiStore.operating = null;
       }
       if (msg.type === 'flowStatus') flowStatus = msg.payload;

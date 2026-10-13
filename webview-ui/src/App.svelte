@@ -55,6 +55,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
   let flowConfig = $state<FlowConfig | null>(null);
   let bisectMessage = $state<string | null>(null);
   let searchBar: SearchBar | undefined = $state();
+  let statsView: StatsView | undefined = $state();
   let searchRequestSequence = 0;
   let pendingFileHistory: { requestId: string; resolve: (result: FileHistoryResult) => void; reject: (error: Error) => void } | null = null;
   let pendingNavigation: { requestId: string; hash: string; resolve: () => void; reject: (error: Error) => void } | null = null;
@@ -309,6 +310,21 @@ import AmendModal from './components/modals/AmendModal.svelte';
     };
   });
 
+  function refreshView(includeRepoList = true) {
+    if (uiStore.viewMode === 'stats') {
+      statsView?.refresh();
+      return;
+    }
+    commitStore.setLoading(true);
+    vscode.postMessage({ type: 'getLog', payload: {
+      limit: commitStore.currentLimit || undefined,
+      branches: [...branchFilter],
+      remoteFilter: [...remoteFilter],
+    }});
+    vscode.postMessage({ type: 'getBranches' });
+    if (includeRepoList) vscode.postMessage({ type: 'getRepoList' });
+  }
+
   function handleGlobalKeydown(e: KeyboardEvent) {
     const ctrl = e.ctrlKey || e.metaKey;
 
@@ -325,13 +341,8 @@ import AmendModal from './components/modals/AmendModal.svelte';
     if (ctrl && e.key === 'r') {
       e.preventDefault();
       searchBar?.refresh();
-      commitStore.setLoading(true);
-      vscode.postMessage({ type: 'getLog', payload: {
-        limit: commitStore.currentLimit || undefined,
-        branches: [...branchFilter],
-        remoteFilter: [...remoteFilter],
-      }});
-      vscode.postMessage({ type: 'getBranches' });
+      uiStore.operating = 'refresh';
+      refreshView(false);
     }
 
     // A file selected in the commit-details panel takes the first Esc: deselect
@@ -476,16 +487,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
 </script>
 
 <div class="app-container" class:resizing>
-  <Toolbar onRefresh={() => {
-    commitStore.setLoading(true);
-    vscode.postMessage({ type: 'getLog', payload: {
-      limit: commitStore.currentLimit || undefined,
-      branches: [...branchFilter],
-      remoteFilter: [...remoteFilter],
-    }});
-    vscode.postMessage({ type: 'getBranches' });
-    vscode.postMessage({ type: 'getRepoList' });
-  }} />
+  <Toolbar onRefresh={() => refreshView()} />
 
   {#if conflict}
     <div class="conflict-banner banner-card" transition:slide={{ duration: 150 }}>
@@ -623,7 +625,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
       </div>
     {:else if uiStore.viewMode === 'stats'}
       <div class="stats-container">
-        <StatsView />
+        <StatsView bind:this={statsView} />
       </div>
     {/if}
   </div>

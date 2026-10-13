@@ -340,8 +340,13 @@ export const zh: Record<string, string> = {
 
   // Stats
   'stats.contributors': '贡献者（{count}）',
-  'stats.commitsByDayHour': '按天/小时统计提交（共 {count}）',
+  'stats.commitsLastYear': '最近一年共 {count} 次提交',
+  'stats.allContributors': '所有贡献者',
+  'stats.commitCount': '{count} 次提交',
+  'stats.dayCommits': '{date}：{count} 次提交',
+  'stats.dailyCommits': '最近一年每日提交统计',
   'stats.loading': '正在加载统计信息',
+  'stats.retry': '重试',
   'stats.less': '收起',
   'stats.more': '展开',
 

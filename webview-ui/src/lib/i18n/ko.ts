@@ -340,8 +340,13 @@ export const ko: Record<string, string> = {
 
   // Stats
   'stats.contributors': '기여자 ({count})',
-  'stats.commitsByDayHour': '요일 및 시간별 Commit ({count}개 총)',
+  'stats.commitsLastYear': '지난 1년간 Commit {count}개',
+  'stats.allContributors': '모든 기여자',
+  'stats.commitCount': 'Commit {count}개',
+  'stats.dayCommits': '{date}: Commit {count}개',
+  'stats.dailyCommits': '지난 1년간 일별 Commit',
   'stats.loading': '통계 로딩 중',
+  'stats.retry': '다시 시도',
   'stats.less': '적음',
   'stats.more': '많음',
 

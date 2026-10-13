@@ -102,21 +102,44 @@ describe('GitService integration — search & stats', () => {
     });
   });
 
-  describe('statsCommitsByWeekdayHour', () => {
-    it('returns weekday/hour buckets with counts', async () => {
-      commit(repo.path, 'one');
-      commit(repo.path, 'two');
-      commit(repo.path, 'three');
+  describe('statsCommitsByDay', () => {
+    it('groups by author day and identity, including boundaries but excluding old and future dates', async () => {
+      const add = (date: string, author = 'Alice <a@x.com>') => runGit(repo.path, [
+        'commit', '--allow-empty', '-m', date, `--author=${author}`, `--date=${date}`,
+      ]);
+      add('2023-10-15T12:00:00Z');
+      add('2023-10-16T00:01:00+14:00');
+      add('2024-02-29T23:59:00-12:00');
+      add('2024-02-29T23:59:00-12:00');
+      add('2024-02-29T10:00:00Z', 'Bob <b@x.com>');
+      add('2024-10-14T23:59:00-12:00');
+      add('2024-10-15T00:01:00+14:00');
+      // All committer dates are 2024-01-01; the calendar must use author dates.
+      const stats = await svc.statsCommitsByDay(new Date(2024, 9, 14));
+      expect(stats.startDate).toBe('2023-10-16');
+      expect(stats.endDate).toBe('2024-10-14');
+      expect(stats.byDay).toHaveLength(4);
+      expect(stats.byDay).toEqual(expect.arrayContaining([
+        { date: '2023-10-16', author: 'Alice', email: 'a@x.com', count: 1 },
+        { date: '2024-02-29', author: 'Alice', email: 'a@x.com', count: 2 },
+        { date: '2024-02-29', author: 'Bob', email: 'b@x.com', count: 1 },
+        { date: '2024-10-14', author: 'Alice', email: 'a@x.com', count: 1 },
+      ]));
+    });
 
-      const buckets = await svc.statsCommitsByWeekdayHour();
-      // Three commits, all at the same fixed time from NOISY_ENV_OVERRIDES,
-      // should land in a single bucket with count 3.
-      expect(buckets.length).toBe(1);
-      expect(buckets[0].count).toBe(3);
-      expect(buckets[0].weekday).toBeGreaterThanOrEqual(0);
-      expect(buckets[0].weekday).toBeLessThanOrEqual(6);
-      expect(buckets[0].hour).toBeGreaterThanOrEqual(0);
-      expect(buckets[0].hour).toBeLessThanOrEqual(23);
+    it('uses the same mailmap identity as the contributor list', async () => {
+      commit(repo.path, 'mailmap', { '.mailmap': 'Alice <alice@example.com> Alias <old@example.com>\n' });
+      runGit(repo.path, ['commit', '--allow-empty', '-m', 'alias', '--author=Alias <old@example.com>']);
+      const stats = await svc.statsCommitsByDay(new Date(2024, 0, 1));
+      const author = (await svc.statsCommitsByAuthor()).find(a => a.author === 'Alice');
+      expect(author).toEqual({ author: 'Alice', email: 'alice@example.com', count: 1 });
+      expect(stats.byDay).toContainEqual({ date: '2024-01-01', ...author });
+    });
+
+    it('returns an empty calendar range for a repository with no commits', async () => {
+      const stats = await svc.statsCommitsByDay(new Date(2024, 0, 1));
+      expect(stats.byDay).toEqual([]);
+      expect(stats.endDate).toBe('2024-01-01');
     });
   });
 });

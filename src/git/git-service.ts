@@ -2287,20 +2287,33 @@ export class GitService {
     });
   }
 
-  async statsCommitsByWeekdayHour(): Promise<Array<{ weekday: number; hour: number; count: number }>> {
-    const raw = await this.exec(['log', '--all', '--format=%aI', '--no-merges']);
-    if (!raw.trim()) { return []; }
-    const grid = new Map<string, number>();
-    for (const line of raw.trim().split('\n').filter(Boolean)) {
-      const bin = binCommitTime(line.trim());
-      if (!bin) continue;
-      const key = `${bin.weekday}-${bin.hour}`;
-      grid.set(key, (grid.get(key) ?? 0) + 1);
+  async statsCommitsByDay(now = new Date()): Promise<{
+    startDate: string;
+    endDate: string;
+    byDay: Array<{ date: string; author: string; email: string; count: number }>;
+  }> {
+    // Calendar arithmetic in UTC avoids DST gaps; "today" follows the host's local date.
+    const end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 364);
+    const startDate = start.toISOString().slice(0, 10);
+    const endDate = end.toISOString().slice(0, 10);
+    // Do not use --since: it filters committer dates and can prune history with
+    // non-monotonic timestamps. Match shortlog's mailmap identities and merge policy.
+    const raw = await this.exec(['log', '--all', '--format=%aI%x00%aN%x00%aE', '--no-merges']);
+    const buckets = new Map<string, { date: string; author: string; email: string; count: number }>();
+    for (const line of raw.split('\n')) {
+      const [timestamp, author, email] = line.split('\0');
+      if (!timestamp || author === undefined || email === undefined) continue;
+      // Preserve the author's calendar day, including the recorded timezone.
+      const date = timestamp.slice(0, 10);
+      if (date < startDate || date > endDate) continue;
+      const key = JSON.stringify([date, author, email]);
+      const bucket = buckets.get(key);
+      if (bucket) bucket.count++;
+      else buckets.set(key, { date, author, email, count: 1 });
     }
-    return Array.from(grid.entries()).map(([key, count]) => {
-      const [weekday, hour] = key.split('-').map(Number);
-      return { weekday, hour, count };
-    });
+    return { startDate, endDate, byDay: [...buckets.values()] };
   }
 
   // --- Patch ---

@@ -340,8 +340,13 @@ export const en: Record<string, string> = {
 
   // Stats
   'stats.contributors': 'Contributors ({count})',
-  'stats.commitsByDayHour': 'Commits by Day & Hour ({count} total)',
+  'stats.commitsLastYear': '{count} commits in the last year',
+  'stats.allContributors': 'All contributors',
+  'stats.commitCount': '{count} commits',
+  'stats.dayCommits': '{count} commits on {date}',
+  'stats.dailyCommits': 'Daily commits in the last year',
   'stats.loading': 'Loading statistics',
+  'stats.retry': 'Retry',
   'stats.less': 'Less',
   'stats.more': 'More',
 

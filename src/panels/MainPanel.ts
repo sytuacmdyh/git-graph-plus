@@ -1368,13 +1368,13 @@ export class MainPanel {
         }
         // --- Statistics ---
         case 'getStats': {
-          const [byAuthor, byWeekdayHour] = await Promise.all([
+          const [byAuthor, daily] = await Promise.all([
             this.gitService.statsCommitsByAuthor(),
-            this.gitService.statsCommitsByWeekdayHour(),
+            this.gitService.statsCommitsByDay(),
           ]);
           this.post({
             type: 'statsData',
-            payload: { byAuthor, byWeekdayHour },
+            payload: { byAuthor, ...daily },
           });
           break;
         }
