@@ -1,4 +1,5 @@
 {
+  "command.showFileHistory": "查看文件历史（Git Graph YZC）",
   "command.open": "Git Graph YZC: 打开",
   "command.refresh": "Git Graph YZC: 刷新",
   "command.fetch": "Git Graph YZC: 抓取",

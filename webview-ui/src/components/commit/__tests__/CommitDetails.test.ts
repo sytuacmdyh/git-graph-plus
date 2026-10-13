@@ -1461,3 +1461,75 @@ describe('CommitDetails — reverse changes (committed view)', () => {
     expect(msg!.payload).toMatchObject({ commit: 'h1', file: 'src/a.ts', hunkIndex: 0, lineIndices: [1, 2] });
   });
 });
+
+describe('CommitDetails — show file history', () => {
+  async function changes(container: HTMLElement) {
+    const tab = [...container.querySelectorAll<HTMLButtonElement>('.top-tab')].find(b => /changes/i.test(b.textContent ?? ''))!;
+    await fireEvent.click(tab);
+  }
+  async function clickHistory(container: HTMLElement, path: string) {
+    const row = [...container.querySelectorAll<HTMLButtonElement>('.file-item')].find(b => b.textContent?.includes(path))!;
+    await fireEvent.contextMenu(row);
+    const item = [...container.querySelectorAll<HTMLButtonElement>('.context-menu button')].find(b => b.textContent?.trim() === 'Show File History')!;
+    expect(item).toBeTruthy();
+    await fireEvent.click(item);
+  }
+
+  it('uses the right-clicked deleted file rather than the multiple selected files', async () => {
+    const onShowFileHistory = vi.fn();
+    const { container } = render(CommitDetails, { commit: commit({ hash: 'h1' }), onShowFileHistory });
+    deliverCommitDiff('h1', [{ path: 'a.ts', status: 'M' }, { path: 'deleted.ts', status: 'D' }]);
+    await changes(container);
+    const rows = [...container.querySelectorAll<HTMLButtonElement>('.file-item')];
+    for (const row of rows) await fireEvent.click(row, { ctrlKey: true });
+    await clickHistory(container, 'deleted.ts');
+    expect(onShowFileHistory).toHaveBeenCalledWith({ path: 'deleted.ts' });
+    expect(container.querySelector('.context-menu')).toBeNull();
+  });
+
+  it('uses the new path of a committed rename', async () => {
+    const onShowFileHistory = vi.fn();
+    const { container } = render(CommitDetails, { commit: commit({ hash: 'h1' }), onShowFileHistory });
+    window.dispatchEvent(new MessageEvent('message', { data: {
+      type: 'commitDiffData', payload: { hash: 'h1', files: [{ path: 'new.ts', status: 'R', oldPath: 'old.ts' }] },
+    } }));
+    await changes(container);
+    await clickHistory(container, 'new.ts');
+    expect(onShowFileHistory).toHaveBeenCalledWith({ path: 'new.ts' });
+  });
+
+  it('provides the action in a commit comparison', async () => {
+    uiStore.comparing = true;
+    const onShowFileHistory = vi.fn();
+    const { container } = render(CommitDetails, { onShowFileHistory });
+    await changes(container);
+    deliverCommitDiff('', [{ path: 'compared.ts', status: 'M' }]);
+    await waitFor(() => expect(container.querySelector('.file-item')).toBeTruthy());
+    await clickHistory(container, 'compared.ts');
+    expect(onShowFileHistory).toHaveBeenCalledWith({ path: 'compared.ts' });
+  });
+
+  it.each(['staged', 'unstaged'])('passes the old path for a %s uncommitted rename', async (tab) => {
+    const onShowFileHistory = vi.fn();
+    const { container } = render(CommitDetails, { commit: commit({ hash: 'UNCOMMITTED' }), onShowFileHistory });
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'uncommittedDiffData', payload: {
+      staged: tab === 'staged' ? [{ path: 'new.ts', status: 'R', oldPath: 'old.ts' }] : [],
+      unstaged: tab === 'unstaged' ? [{ path: 'new.ts', status: 'R', oldPath: 'old.ts' }] : [],
+    } } }));
+    if (tab === 'unstaged') {
+      const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => /^Unstaged/.test(b.textContent?.trim() ?? ''))!;
+      await fireEvent.click(button);
+    }
+    await waitFor(() => expect(container.querySelector('.file-item')).toBeTruthy());
+    await clickHistory(container, 'new.ts');
+    expect(onShowFileHistory).toHaveBeenCalledWith({ path: 'new.ts', oldPath: 'old.ts' });
+  });
+
+  it('omits the action for a nested repository', async () => {
+    const { container } = render(CommitDetails, { commit: commit({ hash: 'UNCOMMITTED' }), onShowFileHistory: vi.fn() });
+    deliverUncommittedDiff([{ path: 'nested', status: 'N' }], []);
+    await waitFor(() => expect(container.querySelector('.file-item')).toBeTruthy());
+    await fireEvent.contextMenu(container.querySelector('.file-item')!);
+    expect(container.querySelector('.context-menu')?.textContent).not.toContain('Show File History');
+  });
+});

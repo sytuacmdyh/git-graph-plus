@@ -1,6 +1,6 @@
 <!-- Modified by sytuacmdyh for Git Graph YZC: independent extension identity. -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { commitStore } from '../../lib/stores/commits.svelte';
   import { branchStore } from '../../lib/stores/branches.svelte';
   import { uiStore } from '../../lib/stores/ui.svelte';
@@ -401,7 +401,9 @@
   $effect(() => {
     if (searchNavigateHash && container) {
       navPath = [];
-      scrollHashIntoView(searchNavigateHash, 'center');
+      // Scroll only for a new navigation target, not when background graph
+      // data or viewport dimensions change while the user is browsing.
+      untrack(() => scrollHashIntoView(searchNavigateHash!, 'center'));
     }
   });
 
@@ -1694,7 +1696,7 @@
 
     </div>
 
-    {#if commitStore.hasMore && !isSearchActive}
+    {#if commitStore.hasMore}
       <div class="load-more-row">
         <button
           class="load-more-btn"

@@ -425,3 +425,122 @@ describe('SearchBar — jump to HEAD button', () => {
     expect(btn.classList.contains('active')).toBe(true);
   });
 });
+
+describe('SearchBar — file history', () => {
+  async function search(container: HTMLElement, value: string) {
+    await fireEvent.input(container.querySelector('.search-input')!, { target: { value } });
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+  }
+
+  it('prefers an exact file match over matching commit text', async () => {
+    setCommits([commit({ hash: 'text', subject: 'README.md' }), commit({ hash: 'file' })]);
+    const onFileHistory = vi.fn(async () => ({ recognized: true, path: 'README.md', hashes: ['file'] }));
+    const onResults = vi.fn();
+    const onNavigate = vi.fn();
+    const { container } = render(SearchBar, { onResults, onNavigate, onFileHistory });
+    await search(container, './README.md');
+    expect(onResults).toHaveBeenLastCalledWith(new Set(['file']));
+    expect(onNavigate).toHaveBeenCalledWith('file');
+    expect(container.querySelector('.file-history-label')?.textContent).toBe('File history');
+    expect(container.querySelector<HTMLInputElement>('.search-input')?.value).toBe('README.md');
+  });
+
+  it('falls back to text when the path is not recognized', async () => {
+    setCommits([commit({ hash: 'text', subject: 'feature/login' })]);
+    const onResults = vi.fn();
+    const { container } = render(SearchBar, {
+      ...baseProps, onResults,
+      onFileHistory: async () => ({ recognized: false, path: 'feature/login', hashes: [] }),
+    });
+    await search(container, 'feature/login');
+    expect(onResults).toHaveBeenLastCalledWith(new Set(['text']));
+    expect(container.querySelector('.file-history-label')).toBeNull();
+  });
+
+  it('keeps explicit file mode for a new file and returns to auto mode after editing', async () => {
+    setCommits([commit({ hash: 'text', subject: 'new.txt' })]);
+    const onResults = vi.fn();
+    const { container, component } = render(SearchBar, {
+      ...baseProps, onResults,
+      onFileHistory: async () => ({ recognized: false, path: 'new.txt', hashes: [] }),
+    });
+    component.showFileHistory('new.txt');
+    await Promise.resolve();
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Shift' });
+    expect(onResults).toHaveBeenLastCalledWith(new Set());
+    expect(container.textContent).toContain('No commit history');
+    await search(container, 'new.txt');
+    expect(onResults).toHaveBeenLastCalledWith(new Set(['text']));
+  });
+
+  it('ignores a response after input changes or is cleared', async () => {
+    let resolve!: (result: { recognized: boolean; path: string; hashes: string[] }) => void;
+    const onResults = vi.fn();
+    const { container } = render(SearchBar, {
+      ...baseProps, onResults, onFileHistory: () => new Promise(r => { resolve = r; }),
+    });
+    await search(container, 'first.txt');
+    expect(container.textContent).toContain('Searching');
+    await fireEvent.input(container.querySelector('.search-input')!, { target: { value: '' } });
+    resolve({ recognized: true, path: 'first.txt', hashes: ['stale'] });
+    await Promise.resolve();
+    expect(onResults).toHaveBeenLastCalledWith(null);
+    expect(container.querySelector<HTMLInputElement>('.search-input')!.value).toBe('');
+  });
+
+  it('shows failures separately from an empty history', async () => {
+    const { container } = render(SearchBar, {
+      ...baseProps, onFileHistory: async () => { throw new Error('Git timed out'); },
+    });
+    await search(container, 'file.txt');
+    expect(container.textContent).toContain('Search failed');
+    expect(container.textContent).not.toContain('No commit history');
+  });
+
+  it('preserves the current result when history changes in the background', async () => {
+    const onNavigate = vi.fn();
+    const onFileHistory = vi.fn()
+      .mockResolvedValueOnce({ recognized: true, path: 'file', hashes: ['new', 'old'] })
+      .mockResolvedValueOnce({ recognized: true, path: 'file', hashes: ['newest', 'new', 'old'] });
+    const { container, component } = render(SearchBar, { ...baseProps, onNavigate, onFileHistory });
+    await search(container, 'file');
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+    expect(onNavigate).toHaveBeenLastCalledWith('old');
+    component.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(container.querySelector('.search-count')?.textContent?.replace(/\s/g, '')).toBe('3/3');
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears a navigation error when another result succeeds', async () => {
+    const onNavigate = vi.fn().mockRejectedValueOnce(new Error('missing')).mockReturnValue(undefined);
+    const { container } = render(SearchBar, {
+      ...baseProps, onNavigate,
+      onFileHistory: async () => ({ recognized: true, path: 'file', hashes: ['missing', 'present'] }),
+    });
+    await search(container, 'file');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(container.textContent).toContain('Search failed');
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+    expect(onNavigate).toHaveBeenLastCalledWith('present');
+    expect(container.textContent).not.toContain('Search failed');
+  });
+
+  it('waits for navigation to load an older commit and disables repeated navigation', async () => {
+    let finish!: () => void;
+    const onNavigate = vi.fn(() => new Promise<void>(r => { finish = r; }));
+    const { container } = render(SearchBar, {
+      ...baseProps, onNavigate,
+      onFileHistory: async () => ({ recognized: true, path: 'file', hashes: ['older', 'oldest'] }),
+    });
+    await search(container, 'file');
+    expect(container.textContent).toContain('Loading commit');
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+    expect(onNavigate).toHaveBeenLastCalledWith('oldest');
+    finish();
+  });
+});

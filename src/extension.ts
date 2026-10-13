@@ -1,7 +1,7 @@
 // Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { setGitBinaryPath } from './git/git-binary';
 import { MainPanel } from './panels/MainPanel';
 import { GitService } from './git/git-service';
@@ -376,6 +376,36 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('gitGraphYzc.showFileHistory', async (uri?: vscode.Uri) => {
+      if (!uri || uri.scheme !== 'file') return;
+      try {
+        // Deleted files have no stat; existing directory/submodule rows are not files.
+        if (existsSync(uri.fsPath) && statSync(uri.fsPath).isDirectory()) return;
+        const ext = vscode.extensions.getExtension('vscode.git');
+        if (!ext) return;
+        const exports = ext.isActive ? ext.exports : await ext.activate();
+        type Change = { uri: vscode.Uri; originalUri: vscode.Uri; renameUri?: vscode.Uri; status: number };
+        const api = exports.getAPI(1) as { getRepository(uri: vscode.Uri): {
+          rootUri: vscode.Uri;
+          state: { indexChanges: Change[]; workingTreeChanges: Change[] };
+        } | null };
+        const repo = api.getRepository(uri);
+        if (!repo) return;
+        const change = [...repo.state.indexChanges, ...repo.state.workingTreeChanges]
+          .find(c => process.platform === 'win32'
+            ? samePath(c.uri.fsPath, uri.fsPath)
+            : path.normalize(c.uri.fsPath) === path.normalize(uri.fsPath));
+        // vscode.git Status.INDEX_RENAMED=3, INTENT_TO_RENAME=10. Copies keep
+        // their destination path; only renames query the original committed name.
+        const queryUri = change?.renameUri && (change.status === 3 || change.status === 10)
+          ? change.originalUri : uri;
+        const relative = path.relative(repo.rootUri.fsPath, queryUri.fsPath);
+        if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return;
+        await MainPanel.showFileHistoryWithPanel(context.extensionUri, repo.rootUri.fsPath, relative.split(path.sep).join('/'));
+      } catch (err) {
+        vscode.window.showErrorMessage(`Git Graph YZC: ${err instanceof Error ? err.message : err}`);
+      }
+    }),
     vscode.commands.registerCommand('git-graph-yzc.open', (sourceControl?: vscode.SourceControl) => {
       if (sourceControl?.rootUri) { switchToRepo(sourceControl.rootUri.fsPath); }
       MainPanel.createOrShow(context.extensionUri, activeRepoPath);

@@ -28,7 +28,7 @@ export interface ModalDefaults {
 // Messages from Webview → Extension
 export type WebviewMessage =
   // Omitted filter arrays retain the current/restored selection; [] selects All.
-  | { type: 'getLog'; payload: { branch?: string; branches?: string[]; limit?: number; skip?: number; remoteFilter?: string[] } }
+  | { type: 'getLog'; payload: { branch?: string; branches?: string[]; limit?: number; skip?: number; remoteFilter?: string[]; targetHash?: string; requestId?: string } }
   | { type: 'getBranches' }
   | { type: 'getRepoList' }
   | { type: 'checkDirty'; payload?: { requestId?: string } }
@@ -83,6 +83,8 @@ export type WebviewMessage =
   | { type: 'searchCommits'; payload: { query: string; author?: string; after?: string; before?: string } }
   | { type: 'searchByHash'; payload: { hash: string } }
   | { type: 'searchByFile'; payload: { file: string } }
+  | { type: 'getFileHistory'; payload: { requestId: string; file: string; branches: string[]; remoteFilter: string[] } }
+  | { type: 'cancelFileHistory' }
   | { type: 'getActivityLog' }
   | { type: 'getReflog'; payload?: { ref?: string; limit?: number } }
   | { type: 'bisectStart'; payload: { bad?: string; good?: string } }
@@ -135,14 +137,16 @@ export type ExtensionMessage =
   | { type: 'logData'; payload: CommitGraphData }
   | { type: 'branchData'; payload: BranchData }
   | { type: 'fullRefresh'; payload: { logData: CommitGraphData; branchData: BranchData } }
-  | { type: 'commitDiffData'; payload: { hash?: string; diffs?: DiffData[]; files: Array<{ path: string; status: string }> } }
+  | { type: 'commitDiffData'; payload: { hash?: string; diffs?: DiffData[]; files: Array<{ path: string; status: string; oldPath?: string }> } }
   | { type: 'commitSignatureData'; payload: { hash: string; signature: CommitSignature } }
   | { type: 'rebaseCommitsData'; payload: { base: string; commits: Commit[] } }
   | { type: 'searchResults'; payload: CommitGraphData }
+  | { type: 'fileHistoryResult'; payload: { requestId: string; recognized: boolean; path: string; hashes: string[]; error?: string } }
+  | { type: 'showFileHistory'; payload: { path: string } }
   | { type: 'activityLogData'; payload: Array<{ command: string; timestamp: string; success: boolean; duration: number }> }
   | { type: 'reflogData'; payload: { entries: Array<{ hash: string; shortHash: string; selector: string; message: string; date: string; dangling: boolean }>; hasMore: boolean } }
   | { type: 'repoChanged'; payload: { what: string } }
-  | { type: 'error'; payload: { message: string; command?: string; source?: string } }
+  | { type: 'error'; payload: { message: string; command?: string; source?: string; requestId?: string } }
   | { type: 'notGitRepo' }
   | { type: 'operationComplete'; payload: { operation: string; success: boolean } }
   | { type: 'operationPaused'; payload: { operation: 'rebase' } }
@@ -165,7 +169,7 @@ export type ExtensionMessage =
   | { type: 'repoList'; payload: { repos: Array<{ path: string; name: string; type: 'root' | 'submodule' | 'nested' }>; active: string } }
   | { type: 'worktreeData'; payload: WorktreeInfo[] }
   | { type: 'uncommittedDiffData'; payload: { staged: Array<{ path: string; status: string }>; unstaged: Array<{ path: string; status: string }> } }
-  | { type: 'multiCommitSectionsData'; payload: { files: Array<{ path: string; status: string }>; sections: Array<{ file: string; commit: string; diff: DiffData }> } }
+  | { type: 'multiCommitSectionsData'; payload: { files: Array<{ path: string; status: string; oldPath?: string }>; sections: Array<{ file: string; commit: string; diff: DiffData }> } }
   | { type: 'imageData'; payload: { ref: string; path: string; base64: string; mimeType: string } }
   | { type: 'avatarData'; payload: { email: string; size: number; dataUri: string | null } }
   | { type: 'conflictData'; payload: { operation: string; files: Array<{ path: string; resolved: boolean }> } }

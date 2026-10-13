@@ -279,7 +279,14 @@ export const zh: Record<string, string> = {
   'details.restore': '恢复面板',
 
   // Search bar
-  'search.placeholder': '搜索提交（消息、作者、哈希、分支、标签）',
+  'search.fileHistory': '文件历史',
+  'search.noFileHistory': '暂无提交历史',
+  'search.loading': '搜索中…',
+  'search.loadingHistoryCommit': '加载提交中…',
+  'search.failed': '搜索失败',
+  'search.commitUnavailable': '该提交已不在所选分支范围内',
+  'file.showHistory': '查看文件历史',
+  'search.placeholder': '搜索提交（消息、作者、哈希、分支、标签），或输入完整文件相对路径',
   'search.search': '搜索',
   'search.clear': '清除',
   'search.noResults': '无结果',

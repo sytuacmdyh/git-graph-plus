@@ -1,7 +1,7 @@
 // Modified by sytuacmdyh for Git Graph YZC: independent extension identity.
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { writeFile, unlink } from 'fs/promises';
+import { writeFile, unlink, stat } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { bufferStream, BufferOverflowError } from '../utils/buffer-stream';
@@ -16,7 +16,7 @@ import { resolveGitDirs } from '../services/file-watcher-helpers';
 const DEFAULT_MAX_BUFFER_BYTES = 256 * 1024 * 1024;
 import { parseLog, parseBranches, parseTags, parseRemotes, parseStashList, parseDiff, parseWorktreeList, parseLfsFiles, parseLfsLocks, mapSignatureStatus } from './git-parser';
 import { buildReversePatch } from './patch-builder';
-import type { Commit, BranchInfo, TagInfo, RemoteInfo, StashEntry, LogOptions, DiffData, WorktreeInfo, CommitSignature } from './types';
+import type { Commit, BranchInfo, TagInfo, RemoteInfo, StashEntry, LogOptions, DiffData, WorktreeInfo, CommitSignature, FileHistoryResult } from './types';
 
 export class GitError extends Error {
   constructor(
@@ -54,12 +54,25 @@ export function binCommitTime(iso: string): { weekday: number; hour: number } | 
   return { weekday, hour };
 }
 
+interface FileHistoryScope {
+  tips: string[];
+  revisions: string[];
+  sortOrder?: LogOptions['sortOrder'];
+  paths?: Promise<Set<string>>;
+  order?: Promise<string[]>;
+  matches: Map<string, Promise<string[]>>;
+}
+
 export class GitService {
   private activityLog: Array<{ command: string; timestamp: string; success: boolean; duration: number }> = [];
   private cachedRemoteNames: string[] | null = null;
   private remoteNamesCacheTime = 0;
   private pendingRemoteNames: Promise<string[]> | null = null;
   private extraEnv: Record<string, string> = {};
+  private trackedFileIndex: { stamp: string; paths: Promise<Set<string>> } | null = null;
+  // Immutable tip hashes make cache entries safe across commits, checkout,
+  // fetch and branch filtering. Keep only a few scopes to bound memory.
+  private fileHistoryScopes = new Map<string, FileHistoryScope>();
   // Default per-command timeout (ms). Callers can override per call via the
   // `timeout` option; this is the fallback used when they don't. Configurable
   // via the `gitGraphYzc.timeout` setting so large repos can extend it.
@@ -370,12 +383,14 @@ export class GitService {
     // clicking a non-ASCII (Korean, etc.) file opened no diff. Applied as a
     // `-c` override so it's global, but kept out of the activity-log command
     // string to avoid clutter.
+    // Background status reads must not rewrite the watched index and schedule
+    // another refresh. Required locks for actual mutations remain enabled.
     const spawnArgs = ['-c', 'core.quotePath=false', ...args];
 
     return new Promise((resolve, reject) => {
       const proc = spawn(getGitBinaryPath(), spawnArgs, {
         cwd: this.repoPath,
-        env: { ...process.env, ...this.extraEnv, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', GIT_MERGE_AUTOEDIT: 'no', GIT_EDITOR: 'true', EDITOR: 'true' },
+        env: { ...process.env, ...this.extraEnv, ...(args[0] === 'status' ? { GIT_OPTIONAL_LOCKS: '0' } : {}), GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', GIT_MERGE_AUTOEDIT: 'no', GIT_EDITOR: 'true', EDITOR: 'true' },
       });
 
       const recordActivity = (success: boolean) => {
@@ -475,17 +490,9 @@ export class GitService {
     });
   }
 
-  async log(options?: LogOptions): Promise<Commit[]> {
-    // %G? is appended after %b only when signature verification is requested,
-    // since it forces GPG verification of every commit in the log (slow on
-    // large repos). %b never contains a NUL so the trailing column is unambiguous.
-    const format = '%x01%x02%x03%H%x00%h%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%P%x00%D%x00%b'
-      + (options?.includeSignature ? '%x00%G?' : '');
-    const args = [
-      'log',
-      `--format=${format}`,
-    ];
-
+  /** Shared revision selection for the graph and file history. */
+  private logRevisionArgs(options?: Pick<LogOptions, 'branches' | 'remoteFilter'>): string[] {
+    const args: string[] = [];
     if (options?.branches && options.branches.length > 0) {
       for (const branch of options.branches) {
         this.assertSafeRef(branch, 'log');
@@ -505,10 +512,29 @@ export class GitService {
       // but tag-only commits outside the selected scope are correctly excluded.
     }
 
+    return args;
+  }
+
+  private logSortArg(sortOrder?: LogOptions['sortOrder']): string {
+    return sortOrder === 'topological' ? '--topo-order' :
+      sortOrder === 'date' ? '--date-order' : '--author-date-order';
+  }
+
+  async log(options?: LogOptions): Promise<Commit[]> {
+    // %G? is appended after %b only when signature verification is requested,
+    // since it forces GPG verification of every commit in the log (slow on
+    // large repos). %b never contains a NUL so the trailing column is unambiguous.
+    const format = '%x01%x02%x03%H%x00%h%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%P%x00%D%x00%b'
+      + (options?.includeSignature ? '%x00%G?' : '');
+    const args = [
+      'log',
+      `--format=${format}`,
+    ];
+
+    args.push(...this.logRevisionArgs(options));
+
     args.push(
-      options?.sortOrder === 'topological' ? '--topo-order' :
-      options?.sortOrder === 'date' ? '--date-order' :
-      '--author-date-order'
+      this.logSortArg(options?.sortOrder)
     );
 
     if (options?.limit) {
@@ -775,27 +801,23 @@ export class GitService {
     return raw.trim().length > 0;
   }
 
-  async getUncommittedDiff(): Promise<{ staged: Array<{ path: string; status: string }>; unstaged: Array<{ path: string; status: string }> }> {
-    const raw = await this.exec(['status', '--porcelain', '-uall']);
-    const staged: Array<{ path: string; status: string }> = [];
-    const unstaged: Array<{ path: string; status: string }> = [];
-    // Do not trim the whole output: porcelain lines may start with a space
-    // (e.g. " M file" for unstaged-only modifications), and a leading trim
-    // would shift the first line's columns and chop the filename's first char.
-    for (const line of raw.split('\n').filter(Boolean)) {
-      const x = line[0];
-      const y = line[1];
-      let path = line.slice(3);
-      if (path.includes(' -> ')) path = path.split(' -> ')[1];
-      path = path.trim();
-      // Untracked entries with a trailing slash are nested git repositories that
-      // aren't registered as submodules — git refuses to descend into them, so
-      // they surface as a single directory entry. Strip the slash and mark them
-      // so the UI can show a meaningful label instead of an empty diff.
+  async getUncommittedDiff(): Promise<{ staged: Array<{ path: string; status: string; oldPath?: string }>; unstaged: Array<{ path: string; status: string; oldPath?: string }> }> {
+    const raw = await this.exec(['status', '--porcelain', '-z', '-uall']);
+    const staged: Array<{ path: string; status: string; oldPath?: string }> = [];
+    const unstaged: Array<{ path: string; status: string; oldPath?: string }> = [];
+    const entries = raw.split('\0');
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (!entry) continue;
+      const x = entry[0];
+      const y = entry[1];
+      let path = entry.slice(3);
+      const oldPath = x === 'R' || x === 'C' || y === 'R' || y === 'C' ? entries[++i] : undefined;
       const isNestedRepo = x === '?' && y === '?' && path.endsWith('/');
       if (isNestedRepo) path = path.slice(0, -1);
-      if (x !== ' ' && x !== '?') staged.push({ path, status: x });
-      if (y !== ' ' && y !== '?') unstaged.push({ path, status: y });
+      const rename = oldPath === undefined ? {} : { oldPath };
+      if (x !== ' ' && x !== '?') staged.push({ path, status: x, ...rename });
+      if (y !== ' ' && y !== '?') unstaged.push({ path, status: y, ...rename });
       if (x === '?' && y === '?') unstaged.push({ path, status: isNestedRepo ? 'N' : 'U' });
     }
     return { staged, unstaged };
@@ -1971,6 +1993,123 @@ export class GitService {
     const [raw, remoteNames] = await Promise.all([this.exec(args), this.getRemoteNames()]);
     const commits = parseLog(raw, remoteNames);
     return commits;
+  }
+
+  private async trackedFiles(): Promise<Set<string>> {
+    const indexPath = join(resolveGitDirs(this.repoPath).gitDir, 'index');
+    const metadata = await stat(indexPath).catch(err => {
+      if (err.code === 'ENOENT') return null;
+      throw err;
+    });
+    const stamp = metadata ? `${metadata.ino}:${metadata.size}:${metadata.mtimeMs}:${metadata.ctimeMs}` : 'missing';
+    if (this.trackedFileIndex?.stamp === stamp) return this.trackedFileIndex.paths;
+    const paths = this.exec(['ls-files', '--stage', '-z']).then(raw => {
+      const files = new Set<string>();
+      for (const entry of raw.split('\0')) {
+        if (/^(100[0-7]{3}|120000) /.test(entry)) files.add(entry.slice(entry.indexOf('\t') + 1));
+      }
+      return files;
+    });
+    const entry = { stamp, paths };
+    this.trackedFileIndex = entry;
+    try { return await paths; }
+    catch (err) {
+      if (this.trackedFileIndex === entry) this.trackedFileIndex = null;
+      throw err;
+    }
+  }
+
+  private async fileHistoryScope(options?: Pick<LogOptions, 'branches' | 'remoteFilter' | 'sortOrder'>): Promise<FileHistoryScope> {
+    const revisions = this.logRevisionArgs(options);
+    // --no-walk resolves only the tips; it does not traverse the commit history.
+    const tips = [...new Set((await this.exec(['rev-list', '--no-walk', ...revisions, '--']))
+      .split('\n').filter(Boolean))];
+    const key = JSON.stringify([revisions, tips, options?.sortOrder]);
+    let scope = this.fileHistoryScopes.get(key);
+    if (!scope) {
+      scope = { tips, revisions, sortOrder: options?.sortOrder, matches: new Map() };
+      this.fileHistoryScopes.set(key, scope);
+      if (this.fileHistoryScopes.size > 4) this.fileHistoryScopes.delete(this.fileHistoryScopes.keys().next().value!);
+    }
+    return scope;
+  }
+
+  private historicalFiles(scope: FileHistoryScope): Promise<Set<string>> {
+    if (scope.paths) return scope.paths;
+    // Build one filename index per immutable revision scope. -m includes files
+    // introduced or deleted by merges; --no-renames yields one literal path per
+    // raw record and modes exclude directories/submodules. NUL preserves names.
+    const paths = (scope.tips.length === 0 ? Promise.resolve('') : this.exec([
+      'log', '--format=', '--raw', '-z', '--no-renames', '--full-history', '-m', ...scope.tips, '--',
+    ])).then(raw => {
+      const files = new Set<string>();
+      const fields = raw.split('\0');
+      for (let i = 0; i < fields.length - 1; i++) {
+        if (/^\s*:(?:100[0-7]{3}|120000) |^\s*:[0-7]{6} (?:100[0-7]{3}|120000) /.test(fields[i])) {
+          files.add(fields[++i]);
+        }
+      }
+      return files;
+    });
+    scope.paths = paths;
+    // Failed scans must be retryable, rather than caching a rejected promise.
+    void paths.catch(() => { if (scope.paths === paths) scope.paths = undefined; });
+    return paths;
+  }
+
+  /** Warm exact filename lookup after the graph opens, without delaying its render. */
+  async prepareFileHistory(options?: Pick<LogOptions, 'branches' | 'remoteFilter' | 'sortOrder'>): Promise<void> {
+    const [, scope] = await Promise.all([this.trackedFiles(), this.fileHistoryScope(options)]);
+    await this.historicalFiles(scope);
+  }
+
+  private fileHistoryMatches(file: string, scope: FileHistoryScope): Promise<string[]> {
+    const cached = scope.matches.get(file);
+    if (cached) return cached;
+    const result = (async () => {
+      if (!scope.tips.length) return [];
+      const literal = `:(literal)${file}`;
+      const matched = new Set<string>();
+      let nextTip = 0;
+      // Each walk has its own rename state. Bounded parallelism avoids serial
+      // latency across many branches without spawning a process for every ref.
+      const walk = async () => {
+        while (nextTip < scope.tips.length) {
+          const tip = scope.tips[nextTip++];
+          const raw = await this.exec(['log', '--format=%H', '--follow', tip, '--', literal]);
+          for (const hash of raw.split('\n').filter(Boolean)) matched.add(hash);
+        }
+      };
+      if (!scope.order) {
+        const order = this.exec(['rev-list', this.logSortArg(scope.sortOrder), ...scope.tips, '--'])
+          .then(raw => raw.split('\n').filter(Boolean));
+        scope.order = order;
+        void order.catch(() => { if (scope.order === order) scope.order = undefined; });
+      }
+      const [order] = await Promise.all([scope.order, ...Array.from({ length: Math.min(4, scope.tips.length) }, walk)]);
+      return order.filter(hash => matched.has(hash));
+    })();
+    scope.matches.set(file, result);
+    if (scope.matches.size > 128) scope.matches.delete(scope.matches.keys().next().value!);
+    void result.catch(() => { if (scope.matches.get(file) === result) scope.matches.delete(file); });
+    return result;
+  }
+
+  /** Exact file lookup, including deleted paths, followed independently from each tip. */
+  async getFileHistory(input: string, options?: Pick<LogOptions, 'branches' | 'remoteFilter' | 'sortOrder'>): Promise<FileHistoryResult> {
+    if (typeof input !== 'string' || /[\x00-\x1f\x7f]/.test(input)) {
+      throw new GitError('Invalid file history path', null, []);
+    }
+    let file = input.trim().replace(/\\/g, '/');
+    while (file.startsWith('./')) file = file.slice(2);
+    this.assertSafePath(file, 'file history');
+    if (file.endsWith('/') || file.split('/').some(part => !part || part === '.')) {
+      return { recognized: false, path: file, hashes: [] };
+    }
+    const [tracked, scope] = await Promise.all([this.trackedFiles(), this.fileHistoryScope(options)]);
+    const recognized = tracked.has(file) || (await this.historicalFiles(scope)).has(file);
+    const hashes = recognized ? await this.fileHistoryMatches(file, scope) : [];
+    return { recognized, path: file, hashes: [...hashes] };
   }
 
   async searchByFile(filePath: string, limit: number = 100): Promise<Commit[]> {

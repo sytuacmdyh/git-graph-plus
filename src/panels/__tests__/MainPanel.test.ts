@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const H = vi.hoisted(() => {
   const git: Record<string, ReturnType<typeof vi.fn>> = {
     log: vi.fn(async () => []),
+    prepareFileHistory: vi.fn(async () => {}),
     branches: vi.fn(async () => []),
     tags: vi.fn(async () => []),
     remotes: vi.fn(async () => []),
@@ -130,6 +131,7 @@ beforeEach(() => {
   // Reset default git behaviour after clearAllMocks wiped implementations.
   for (const k of Object.keys(H.git)) H.git[k].mockReset();
   H.git.log.mockResolvedValue([]);
+  H.git.prepareFileHistory.mockResolvedValue(undefined);
   H.git.branches.mockResolvedValue([]);
   H.git.tags.mockResolvedValue([]);
   H.git.remotes.mockResolvedValue([]);
@@ -159,6 +161,41 @@ const commit = (hash: string) => ({
 });
 
 describe('MainPanel construction', () => {
+  it('queues Explorer file history until the initial graph has loaded', async () => {
+    await MainPanel.showFileHistoryWithPanel(extUri, '/repo', 'deleted.ts');
+    expect(postedOfType('showFileHistory')).toHaveLength(0);
+    await dispatch({ type: 'getLog', payload: {} });
+    expect(postedOfType('showFileHistory')).toEqual([{ type: 'showFileHistory', payload: { path: 'deleted.ts' } }]);
+    const types = posted().map(m => m.type);
+    expect(types.indexOf('showFileHistory')).toBeGreaterThan(types.indexOf('logData'));
+  });
+
+  it('switches repository before opening Explorer file history', async () => {
+    await dispatch({ type: 'getLog', payload: {} });
+    await MainPanel.showFileHistoryWithPanel(extUri, '/other', 'old.ts');
+    const messages = posted();
+    const history = messages.findIndex(m => m.type === 'showFileHistory');
+    expect(history).toBeGreaterThan(messages.findIndex(m => m.type === 'repoList' && m.payload?.active === '/other'));
+    expect(history).toBeGreaterThan(messages.findIndex(m => m.type === 'fullRefresh'));
+    expect(messages[history].payload).toEqual({ path: 'old.ts' });
+  });
+
+  it('keeps only the latest Explorer request while the webview is starting', async () => {
+    await MainPanel.currentPanel!.postRefresh();
+    await MainPanel.showFileHistoryWithPanel(extUri, '/repo', 'first.ts');
+    await MainPanel.showFileHistoryWithPanel(extUri, '/repo', 'latest.ts');
+    expect(postedOfType('showFileHistory')).toHaveLength(0);
+    await dispatch({ type: 'getLog', payload: {} });
+    expect(postedOfType('showFileHistory')).toEqual([{ type: 'showFileHistory', payload: { path: 'latest.ts' } }]);
+  });
+
+  it('drops a queued Explorer request after a different repository is selected', async () => {
+    await MainPanel.showFileHistoryWithPanel(extUri, '/repo', 'old.ts');
+    await MainPanel.currentPanel!.switchRepo('/other');
+    await dispatch({ type: 'getLog', payload: {} });
+    expect(postedOfType('showFileHistory')).toHaveLength(0);
+  });
+
   it('creates a webview panel, sets its html, and posts the locale', () => {
     expect(H.panel).not.toBeNull();
     expect(H.panel!.webview).toBeDefined();
@@ -548,5 +585,62 @@ describe('MainPanel — persistent repository filters', () => {
     expect(H.git.log).toHaveBeenCalledTimes(1);
     expect(H.git.log.mock.calls[0][0]).toMatchObject({ branches: [], remoteFilter: [] });
     expect(filterValues.get(filterKey())).toEqual({ branches: ['main'], remoteFilter: [] });
+  });
+});
+
+describe('MainPanel file history', () => {
+  it('warms file detection after publishing the graph, once per filter scope', async () => {
+    H.git.prepareFileHistory.mockImplementation(async () => {
+      expect(postedOfType('logData').length).toBeGreaterThan(0);
+    });
+    await dispatch({ type: 'getLog', payload: { limit: 1 } });
+    await dispatch({ type: 'getLog', payload: { limit: 2 } });
+    expect(H.git.prepareFileHistory).toHaveBeenCalledTimes(1);
+    await dispatch({ type: 'getLog', payload: { branches: ['main'], remoteFilter: ['local'] } });
+    expect(H.git.prepareFileHistory).toHaveBeenLastCalledWith({ branches: ['main'], remoteFilter: ['local'], sortOrder: 'topological' });
+    expect(H.git.prepareFileHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('routes the exact path, scope, and sort order and correlates the response', async () => {
+    H.git.getFileHistory = vi.fn(async () => ({ recognized: true, path: 'file', hashes: ['older'] }));
+    await dispatch({ type: 'getFileHistory', payload: { requestId: 'query', file: './file', branches: ['main'], remoteFilter: ['local'] } });
+    expect(H.git.getFileHistory).toHaveBeenCalledWith('./file', { branches: ['main'], remoteFilter: ['local'], sortOrder: 'topological' });
+    expect(postedOfType('fileHistoryResult').at(-1)?.payload).toEqual({ requestId: 'query', recognized: true, path: 'file', hashes: ['older'] });
+  });
+
+  it('discards a canceled query and correlates a query error', async () => {
+    let resolve!: (result: unknown) => void;
+    H.git.getFileHistory = vi.fn(() => new Promise(r => { resolve = r; }));
+    const request = dispatch({ type: 'getFileHistory', payload: { requestId: 'old', file: 'file', branches: [], remoteFilter: [] } });
+    await dispatch({ type: 'cancelFileHistory' });
+    resolve({ recognized: true, path: 'file', hashes: ['stale'] });
+    await request;
+    expect(postedOfType('fileHistoryResult')).toHaveLength(0);
+    H.git.getFileHistory.mockRejectedValue(new Error('timeout'));
+    await dispatch({ type: 'getFileHistory', payload: { requestId: 'new', file: 'file', branches: [], remoteFilter: [] } });
+    expect(postedOfType('fileHistoryResult').at(-1)?.payload).toMatchObject({ requestId: 'new', error: 'timeout' });
+  });
+
+  it('grows the ordinary graph until the target is loaded, retaining intermediate commits', async () => {
+    H.git.log.mockResolvedValueOnce([commit('new'), commit('middle')])
+      .mockResolvedValueOnce([commit('new'), commit('middle'), commit('old')]);
+    await dispatch({ type: 'getLog', payload: { limit: 1, targetHash: 'old', requestId: 'navigation' } });
+    expect(H.git.log).toHaveBeenCalledTimes(2);
+    expect(postedOfType('logData').at(-1)?.payload).toMatchObject({
+      requestId: 'navigation', targetHash: 'old', hasMore: false,
+      commits: [commit('new'), commit('middle'), commit('old')],
+    });
+  });
+
+  it('does not publish an in-flight graph expansion after cancellation', async () => {
+    let resolve!: (commits: unknown[]) => void;
+    H.git.log.mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+    const request = dispatch({ type: 'getLog', payload: { limit: 1, targetHash: 'old', requestId: 'navigation' } });
+    // getLog awaits filter restoration before starting the subprocess.
+    await Promise.resolve();
+    await dispatch({ type: 'cancelFileHistory' });
+    resolve([commit('new'), commit('old')]);
+    await request;
+    expect(postedOfType('logData')).toHaveLength(0);
   });
 });

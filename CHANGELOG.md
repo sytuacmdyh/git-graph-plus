@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.3 (2026-10-13)
+
+### Changes
+- Move the external file-history context menu from Source Control to Explorer files only.
+- Keep the menu title localized through the English, Chinese and Korean package dictionaries.
+
+## 0.1.2 (2026-10-13)
+
+### Features
+- Search exact file paths with rename tracking and navigation through the complete commit graph.
+- Open file history from Git Graph file lists or the VS Code/Cursor Source Control file context menu.
+- Keep message, author, hash, branch and tag search hints alongside the file-path hint.
+
+### Fixes
+- Preserve search results and scroll position during unchanged background refreshes.
+- Avoid status reads rewriting the watched Git index; warm and cache filename detection and parallelize rename-following queries.
+
 ## 0.1.1 (2026-10-12)
 
 ### Release

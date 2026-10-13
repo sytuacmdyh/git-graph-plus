@@ -1,4 +1,5 @@
 {
+  "command.showFileHistory": "파일 변경 이력 보기 (Git Graph YZC)",
   "command.open": "Git Graph YZC: 열기",
   "command.refresh": "Git Graph YZC: 새로고침",
   "command.fetch": "Git Graph YZC: Fetch",

@@ -1,4 +1,5 @@
 {
+  "command.showFileHistory": "Show File History (Git Graph YZC)",
   "command.open": "Git Graph YZC: Open",
   "command.refresh": "Git Graph YZC: Refresh",
   "command.fetch": "Git Graph YZC: Fetch",

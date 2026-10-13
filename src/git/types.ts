@@ -71,7 +71,16 @@ export interface GraphDotData {
   type: 'default' | 'head' | 'merge' | 'remote-tip';
 }
 
+export interface FileHistoryResult {
+  recognized: boolean;
+  path: string;
+  hashes: string[];
+}
+
 export interface CommitGraphData {
+  requestId?: string;
+  targetHash?: string;
+  historyChanged?: boolean;
   commits: Commit[];
   graph: GraphNode[];
   paths?: GraphPathData[];

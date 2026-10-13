@@ -3,6 +3,9 @@
   import { commitStore } from '../../lib/stores/commits.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import CommitDetails from '../commit/CommitDetails.svelte';
+  import type { FileHistoryTarget } from '../../lib/types';
+
+  let { onShowFileHistory }: { onShowFileHistory?: (target: FileHistoryTarget) => void } = $props();
 
   let commit = $derived(
     uiStore.selectedCommitHash
@@ -15,9 +18,9 @@
 
 <div class="bottom-panel">
   {#if uiStore.comparing}
-    <CommitDetails />
+    <CommitDetails {onShowFileHistory} />
   {:else if commit}
-    <CommitDetails {commit} />
+    <CommitDetails {commit} {onShowFileHistory} />
   {:else if armedHint}
     <div class="empty">{t('details.selectMoreCommits')}</div>
   {:else}

@@ -12,6 +12,7 @@ const H = vi.hoisted(() => ({
   workspaceFolders: undefined as Array<{ uri: { fsPath: string } }> | undefined,
   gitPathConfig: null as string | string[] | null,
   worktreeList: [] as Array<{ path: string; isMain: boolean }>,
+  gitExtension: undefined as unknown,
 }));
 
 vi.mock('vscode', () => ({
@@ -41,13 +42,13 @@ vi.mock('vscode', () => ({
     registerCommand: (id: string, cb: (...args: unknown[]) => unknown) => { H.registeredCommands.push(id); H.commandHandlers[id] = cb; return { dispose() {} }; },
     executeCommand: vi.fn(),
   },
-  extensions: { getExtension: () => undefined },
+  extensions: { getExtension: () => H.gitExtension },
   l10n: { t: (s: string) => s },
   Uri: { joinPath: () => ({}), file: (p: string) => ({ fsPath: p }), parse: () => ({}) },
   ViewColumn: { One: 1 },
 }));
 
-vi.mock('fs', () => ({ existsSync: vi.fn(() => true) }));
+vi.mock('fs', () => ({ existsSync: vi.fn(() => true), statSync: vi.fn(() => ({ isDirectory: () => false })) }));
 vi.mock('../git/git-binary', () => ({ setGitBinaryPath: vi.fn() }));
 vi.mock('../panels/MainPanel', () => ({
   MainPanel: class {
@@ -57,6 +58,7 @@ vi.mock('../panels/MainPanel', () => ({
     static setFilterStorage = vi.fn();
     static createOrShow = vi.fn();
     static showModalWithPanel = vi.fn();
+    static showFileHistoryWithPanel = vi.fn(async () => {});
     static onSidebarRefresh: unknown = null;
     static onRepoChange: unknown = null;
   },
@@ -74,7 +76,7 @@ vi.mock('../services/repo-discovery', () => ({ RepoDiscoveryService: { discoverR
 void viewStub;
 
 import { activate, resolveConfiguredGitPath } from '../extension';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { MainPanel } from '../panels/MainPanel';
 import { commands } from 'vscode';
 import manifest from '../../package.json';
@@ -99,7 +101,9 @@ beforeEach(() => {
   H.workspaceFolders = undefined;
   H.gitPathConfig = null;
   H.worktreeList = [];
+  H.gitExtension = undefined;
   vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<typeof statSync>);
 });
 
 describe('resolveConfiguredGitPath', () => {
@@ -128,6 +132,52 @@ describe('resolveConfiguredGitPath', () => {
 });
 
 describe('activate', () => {
+  it('contributes file history only to Explorer file menus with a localized title', () => {
+    const menus = manifest.contributes.menus as Record<string, Array<{ command: string; when?: string }>>;
+    expect(menus['explorer/context']).toContainEqual(expect.objectContaining({ command: 'gitGraphYzc.showFileHistory', when: 'resourceScheme == file && !explorerResourceIsFolder' }));
+    expect(manifest.contributes.commands.find(c => c.command === 'gitGraphYzc.showFileHistory')?.title).toBe('%command.showFileHistory%');
+    for (const key of ['scm/resourceState/context', 'editor/context', 'editor/title', 'scm/resourceFolder/context']) {
+      expect(menus[key] ?? []).not.toContainEqual(expect.objectContaining({ command: 'gitGraphYzc.showFileHistory' }));
+    }
+  });
+
+  it.each([
+    ['modified', 0], ['deleted', 2], ['added', 1], ['renamed', 3], ['intent rename', 10], ['copied', 4],
+  ] as const)('opens history for the clicked %s Explorer file in its own repository', async (kind, status) => {
+    H.workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    const uri = { fsPath: '/other/中文 file.ts', scheme: 'file' };
+    const renamed = status === 3 || status === 10;
+    const change = { uri, originalUri: { fsPath: '/other/old.ts' }, renameUri: renamed || status === 4 ? uri : undefined, status };
+    if (kind === 'deleted') vi.mocked(existsSync).mockReturnValue(false);
+    H.gitExtension = { isActive: true, exports: { getAPI: () => ({ repositories: [], getRepository: () => ({ rootUri: { fsPath: '/other' }, state: { indexChanges: status === 10 ? [] : [change], workingTreeChanges: status === 10 ? [change] : [] } }) }) } };
+    const context = makeContext();
+    activate(context);
+    const handler = H.commandHandlers['gitGraphYzc.showFileHistory'];
+    expect(handler).toBeTypeOf('function');
+    await handler(uri, [uri, { fsPath: '/repo/selected.ts', scheme: 'file' }]);
+    expect(MainPanel.showFileHistoryWithPanel).toHaveBeenLastCalledWith(context.extensionUri, '/other', renamed ? 'old.ts' : '中文 file.ts');
+  });
+
+  it('ignores Explorer directory and nested repository rows', async () => {
+    H.workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    vi.mocked(statSync).mockReturnValue({ isDirectory: () => true } as ReturnType<typeof statSync>);
+    activate(makeContext());
+    vi.mocked(MainPanel.showFileHistoryWithPanel).mockClear();
+    await H.commandHandlers['gitGraphYzc.showFileHistory']({ fsPath: '/repo/nested', scheme: 'file' });
+    expect(MainPanel.showFileHistoryWithPanel).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(process.platform === 'win32')('keeps Explorer filenames case-sensitive on Linux', async () => {
+    H.workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    const clicked = { fsPath: '/repo/File.ts', scheme: 'file' };
+    H.gitExtension = { isActive: true, exports: { getAPI: () => ({ repositories: [], getRepository: () => ({ rootUri: { fsPath: '/repo' }, state: { indexChanges: [
+      { uri: { fsPath: '/repo/file.ts' }, originalUri: { fsPath: '/repo/other.ts' }, renameUri: { fsPath: '/repo/file.ts' }, status: 3 },
+    ], workingTreeChanges: [] } }) }) } };
+    activate(makeContext());
+    await H.commandHandlers['gitGraphYzc.showFileHistory'](clicked);
+    expect(MainPanel.showFileHistoryWithPanel).toHaveBeenLastCalledWith(expect.anything(), '/repo', 'File.ts');
+  });
+
   it('with no workspace folder, registers only the open fallbacks and no tree views', () => {
     H.workspaceFolders = undefined;
     const ctx = makeContext();

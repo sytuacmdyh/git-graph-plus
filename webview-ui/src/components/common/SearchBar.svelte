@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { commitStore } from '../../lib/stores/commits.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { tooltip } from '../../lib/actions/tooltip';
-  import type { BranchInfo } from '../../lib/types';
+  import type { BranchInfo, FileHistoryResult } from '../../lib/types';
 
   interface Props {
     onResults: (matchedHashes: Set<string> | null) => void;
-    onNavigate: (hash: string) => void;
+    onNavigate: (hash: string) => void | Promise<void>;
+    onFileHistory?: (query: string) => Promise<FileHistoryResult>;
+    onQueryChange?: () => void;
     remotes?: string[];
     remoteFilter?: string[];
     onFilterChange?: (filter: string[]) => void;
@@ -21,6 +23,8 @@
   let {
     onResults,
     onNavigate,
+    onFileHistory,
+    onQueryChange = () => {},
     remotes = [],
     remoteFilter = [],
     onFilterChange = () => {},
@@ -32,6 +36,12 @@
   }: Props = $props();
 
   let query = $state('');
+  let fileMode = $state(false);
+  let explicitFile = false;
+  let loading = $state(false);
+  let navigating = $state(false);
+  let error = $state('');
+  let searchVersion = 0;
   let matchedHashes = $state<string[]>([]);
   let currentIndex = $state(-1);
   let inputEl: HTMLInputElement | undefined = $state();
@@ -123,89 +133,154 @@
     return list;
   });
 
-  function doSearch() {
+  function textMatches(): string[] {
     const q = query.trim().toLowerCase();
-    if (!q) {
-      clear();
-      return;
-    }
+    return haystacks.filter(({ text }) => text.includes(q)).map(({ hash }) => hash);
+  }
 
-    const matched: string[] = [];
-    for (const { hash, text } of haystacks) {
-      if (text.includes(q)) {
-        matched.push(hash);
+  function cancelPending(keepResults = false) {
+    searchVersion++;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
+    loading = false;
+    navigating = false;
+    error = '';
+    if (!keepResults) {
+      matchedHashes = [];
+      currentIndex = -1;
+      onResults(query.trim() ? new Set() : null);
+    }
+    onQueryChange();
+  }
+
+  async function navigate(hash: string, version = searchVersion) {
+    if (navigating) return;
+    error = '';
+    navigating = true;
+    try {
+      const result = onNavigate(hash);
+      if (result) await result;
+    } catch (err) {
+      if (version === searchVersion) error = err instanceof Error ? err.message : String(err);
+    } finally {
+      if (version === searchVersion) navigating = false;
+    }
+  }
+
+  async function doSearch(keepHash?: string) {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
+    if (!query.trim()) { clear(); return; }
+    const version = searchVersion;
+    error = '';
+    let matched: string[];
+    if (onFileHistory) {
+      loading = true;
+      try {
+        const result = await onFileHistory(query);
+        if (version !== searchVersion) return;
+        fileMode = explicitFile || result.recognized;
+        if (fileMode) query = result.path;
+        matched = fileMode ? result.hashes : textMatches();
+      } catch (err) {
+        if (version !== searchVersion) return;
+        error = err instanceof Error ? err.message : String(err);
+        matchedHashes = [];
+        currentIndex = -1;
+        onResults(new Set());
+        return;
+      } finally {
+        if (version === searchVersion) loading = false;
       }
+    } else {
+      matched = textMatches();
     }
-
+    const keptIndex = keepHash ? matched.indexOf(keepHash) : -1;
     matchedHashes = matched;
-    currentIndex = matched.length > 0 ? 0 : -1;
-    onResults(matched.length > 0 ? new Set(matched) : new Set());
-
-    if (matched.length > 0) {
-      onNavigate(matched[0]);
-    }
+    currentIndex = keptIndex >= 0 ? keptIndex : matched.length > 0 ? 0 : -1;
+    onResults(new Set(matched));
+    // Background history updates preserve the selected match and scroll. Only
+    // navigate again if that match disappeared, or this is a new user search.
+    if (matched.length > 0 && keptIndex < 0) void navigate(matched[currentIndex], version);
   }
 
   function navigatePrev() {
-    if (matchedHashes.length === 0) return;
+    if (loading || navigating || matchedHashes.length === 0) return;
     currentIndex = (currentIndex - 1 + matchedHashes.length) % matchedHashes.length;
-    onNavigate(matchedHashes[currentIndex]);
+    void navigate(matchedHashes[currentIndex]);
   }
 
   function navigateNext() {
-    if (matchedHashes.length === 0) return;
+    if (loading || navigating || matchedHashes.length === 0) return;
     currentIndex = (currentIndex + 1) % matchedHashes.length;
-    onNavigate(matchedHashes[currentIndex]);
+    void navigate(matchedHashes[currentIndex]);
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        navigatePrev();
-      } else if (matchedHashes.length > 0 && query.trim()) {
-        navigateNext();
-      } else {
-        doSearch();
-      }
+      e.preventDefault();
+      if (loading || navigating) return;
+      if (e.shiftKey) navigatePrev();
+      else if (matchedHashes.length > 0 && query.trim()) navigateNext();
+      else void doSearch();
     }
     if (e.key === 'Escape') {
-      if (branchFilterOpen) {
-        branchFilterOpen = false;
-      } else if (filterOpen) {
-        filterOpen = false;
-      } else {
-        clear();
-        inputEl?.blur();
-      }
+      if (branchFilterOpen) branchFilterOpen = false;
+      else if (filterOpen) filterOpen = false;
+      else { clear(); inputEl?.blur(); }
     }
   }
 
-  function clear() {
+  export function clear() {
     query = '';
-    matchedHashes = [];
-    currentIndex = -1;
-    onResults(null);
+    explicitFile = false;
+    fileMode = false;
+    cancelPending();
+  }
+
+  export function showFileHistory(path: string) {
+    query = path;
+    explicitFile = true;
+    fileMode = true;
+    cancelPending();
+    inputEl?.focus();
+    void doSearch();
+  }
+
+  export function refresh() {
+    if (!query.trim()) return;
+    const keepHash = matchedHashes[currentIndex];
+    cancelPending(true);
+    void doSearch(keepHash);
   }
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function onInput() {
-    if (!query.trim()) {
-      clear();
-      return;
-    }
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => { debounceTimer = null; doSearch(); }, 150);
+    explicitFile = false;
+    fileMode = false;
+    cancelPending();
+    if (!query.trim()) { clear(); return; }
+    debounceTimer = setTimeout(() => { debounceTimer = null; void doSearch(); }, 150);
   }
 
-  // Clear the pending debounce on unmount so a delayed callback can't run
-  // after the component is destroyed (would call onResults on a stale
-  // parent closure and could leak the matchedHashes Set across remounts).
+  // Text search follows graph loading without another file-history request.
+  $effect(() => {
+    const list = haystacks;
+    untrack(() => {
+      if (!query.trim() || loading || fileMode || debounceTimer || error) return;
+      const currentHash = matchedHashes[currentIndex];
+      matchedHashes = list.filter(({ text }) => text.includes(query.trim().toLowerCase())).map(({ hash }) => hash);
+      currentIndex = matchedHashes.length ? Math.max(0, matchedHashes.indexOf(currentHash)) : -1;
+      onResults(new Set(matchedHashes));
+    });
+  });
+
   onDestroy(() => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
+    searchVersion++;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    onQueryChange();
+    onResults(null);
   });
 
   function toggleFilter(value: string) {
@@ -223,7 +298,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div class="search-bar" role="group" onkeydown={handleKeydown}>
-  <div class="search-row" class:has-results={query && matchedHashes.length > 0} class:no-results={query && matchedHashes.length === 0}>
+  <div class="search-row" class:has-results={query && matchedHashes.length > 0} class:no-results={query && !loading && !navigating && !error && matchedHashes.length === 0}>
     <i class="codicon codicon-search search-icon"></i>
     <input
       class="search-input"
@@ -232,20 +307,28 @@
       bind:value={query}
       oninput={onInput}
       placeholder={t('search.placeholder')}
+      use:tooltip={t('search.placeholder')}
     />
+    {#if fileMode}
+      <span class="file-history-label" use:tooltip={query}>{t('search.fileHistory')}</span>
+    {/if}
     {#if query}
       <span class="search-count" class:empty={matchedHashes.length === 0}>
-        {#if matchedHashes.length > 0}
+        {#if loading || navigating}
+          {t(navigating ? 'search.loadingHistoryCommit' : 'search.loading')}
+        {:else if error}
+          <span use:tooltip={error}>{t('search.failed')}</span>
+        {:else if matchedHashes.length > 0}
           <span class="count-current">{currentIndex + 1}</span><span class="count-sep">/</span><span class="count-total">{matchedHashes.length}</span>
         {:else}
-          {t('search.noResults')}
+          {t(fileMode ? 'search.noFileHistory' : 'search.noResults')}
         {/if}
       </span>
       <span class="nav-divider"></span>
-      <button class="nav-btn" onclick={navigatePrev} disabled={matchedHashes.length === 0} aria-label={t('search.prev')} use:tooltip={t('search.prev')}>
+      <button class="nav-btn" onclick={navigatePrev} disabled={loading || navigating || matchedHashes.length === 0} aria-label={t('search.prev')} use:tooltip={t('search.prev')}>
         <i class="codicon codicon-chevron-up"></i>
       </button>
-      <button class="nav-btn" onclick={navigateNext} disabled={matchedHashes.length === 0} aria-label={t('search.next')} use:tooltip={t('search.next')}>
+      <button class="nav-btn" onclick={navigateNext} disabled={loading || navigating || matchedHashes.length === 0} aria-label={t('search.next')} use:tooltip={t('search.next')}>
         <i class="codicon codicon-chevron-down"></i>
       </button>
       <button class="nav-btn close-btn" onclick={clear} aria-label={t('search.clear')} use:tooltip={t('search.clear')}>
@@ -444,6 +527,14 @@
     font-family: inherit;
     outline: none;
     min-width: 0;
+  }
+
+  .file-history-label {
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--vscode-focusBorder, #007fd4);
+    border-right: 1px solid var(--border-color);
+    padding-right: 6px;
   }
 
   .search-count {

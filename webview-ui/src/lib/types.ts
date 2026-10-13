@@ -72,7 +72,16 @@ export interface GraphDotData {
   remoteTip: boolean;
 }
 
+export interface FileHistoryResult {
+  recognized: boolean;
+  path: string;
+  hashes: string[];
+}
+
 export interface CommitGraphData {
+  requestId?: string;
+  targetHash?: string;
+  historyChanged?: boolean;
   commits: Commit[];
   graph: GraphNode[];
   paths?: GraphPathData[];
@@ -180,3 +189,9 @@ export interface FlowBranches {
 export type FlowType = 'feature' | 'release' | 'hotfix';
 
 export type InteractiveRebaseMode = 'ui' | 'classic';
+
+/** oldPath is supplied only for an uncommitted rename. */
+export interface FileHistoryTarget {
+  path: string;
+  oldPath?: string;
+}

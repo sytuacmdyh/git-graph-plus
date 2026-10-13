@@ -54,6 +54,12 @@ A modern, full-featured Git GUI for Cursor. Visualize your commit history, manag
 | **Avatars**             | Gravatar avatars displayed next to author names                                                                       |
 | **Themes**              | Full support for light, dark, and high-contrast VS Code themes                                                        |
 
+### File Commit History
+
+Enter a full repository-relative file path such as `src/extension.ts` or `README.md` in the existing search box. Exact file paths take priority over commit text; other inputs continue searching messages, authors, hashes, branches, and tags. You can also right-click a file in commit details, comparisons, or staged/unstaged changes and choose **Show File History**. In the VS Code/Cursor Explorer → Folders file list, choose **Show File History (Git Graph YZC)** to open Git Graph in the file’s repository. Uncommitted renames query the original path.
+
+Related commits are highlighted in the full graph. Use the arrows, Enter, or Shift+Enter to navigate; older results automatically load more of the graph. History follows renames and respects the current branch/source filters, including deleted files. A new file without commits shows **No commit history**. Clear the search or press Escape to exit.
+
 ### Branch & Tag Management
 
 <p>

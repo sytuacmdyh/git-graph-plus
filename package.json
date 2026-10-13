@@ -2,7 +2,7 @@
   "name": "git-graph-yzc",
   "displayName": "Git Graph YZC",
   "description": "A Git history viewer for Cursor with bulk branch selection and remembered repository filters",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "publisher": "sytuacmdyh",
   "repository": {
     "type": "git",
@@ -38,6 +38,11 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "gitGraphYzc.showFileHistory",
+        "title": "%command.showFileHistory%",
+        "icon": "$(history)"
+      },
       {
         "command": "gitGraphYzc.open",
         "title": "%command.open%",
@@ -216,6 +221,13 @@
       }
     ],
     "menus": {
+      "explorer/context": [
+        {
+          "command": "gitGraphYzc.showFileHistory",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "navigation@20"
+        }
+      ],
       "editor/title": [
         {
           "command": "gitGraphYzc.open",

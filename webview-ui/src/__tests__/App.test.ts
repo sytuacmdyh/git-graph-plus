@@ -1540,12 +1540,125 @@ describe('App — search result highlighting', () => {
     // Enter with no prior matches runs doSearch → onResults + onNavigate, which
     // exercises App's handleSearchResults / handleSearchNavigate.
     await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
-    await waitFor(() => container.querySelector('.commit-row.search-match'));
+    const request = globalThis.__postedMessages.find(m => (m.data as any).type === 'getFileHistory')!.data as any;
+    postMsg('fileHistoryResult', { requestId: request.payload.requestId, recognized: false, path: 'findme', hashes: [] });
+    await waitFor(() => expect(container.querySelector('.commit-row.search-match')).not.toBeNull());
     // The matching row is highlighted (handleSearchResults set searchMatchedHashes).
     expect(container.querySelector('.commit-row.search-match')).not.toBeNull();
     // The first match is the navigation target (handleSearchNavigate set searchNavigateHash).
     expect(container.querySelector('.commit-row.search-current')).not.toBeNull();
     // The non-matching row is dimmed.
     expect(container.querySelector('.commit-row.search-dim')).not.toBeNull();
+  });
+});
+
+describe('App — file history navigation', () => {
+  const row = (hash: string) => ({
+    hash, abbreviatedHash: hash, subject: hash, body: '', parents: [], refs: [],
+    author: { name: '', email: '', date: '' }, committer: { name: '', email: '', date: '' },
+  });
+  function latest(type: string) {
+    return globalThis.__postedMessages.map(m => m.data as any).filter(m => m.type === type).at(-1);
+  }
+  async function search(container: HTMLElement, path: string) {
+    await fireEvent.input(container.querySelector('.search-input')!, { target: { value: path } });
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+    return latest('getFileHistory').payload.requestId;
+  }
+  const graph = (commits: ReturnType<typeof row>[], extra = {}) => ({
+    commits, paths: [], links: [], dots: [], commitLeftMargin: [], graph: [], currentLimit: 1, hasMore: true, ...extra,
+  });
+
+  it('loads an older result in the full graph and ignores a stale graph response', async () => {
+    const { container } = render(App);
+    postMsg('logData', graph([row('new')]));
+    const requestId = await search(container, 'file.txt');
+    postMsg('fileHistoryResult', { requestId, recognized: true, path: 'file.txt', hashes: ['old'] });
+    await waitFor(() => expect(latest('getLog').payload.targetHash).toBe('old'));
+    const navigationId = latest('getLog').payload.requestId;
+    postMsg('logData', graph([row('stale')], { requestId: 'stale-navigation' }));
+    expect(commitStore.commits.map(c => c.hash)).toEqual(['new']);
+    postMsg('logData', graph([row('new'), row('middle'), row('old')], { requestId: navigationId, targetHash: 'old', hasMore: false }));
+    await waitFor(() => expect(container.querySelector('.commit-row.search-current')?.textContent).toContain('old'));
+    expect(commitStore.commits.map(c => c.hash)).toEqual(['new', 'middle', 'old']);
+    expect(container.querySelectorAll('.commit-row.search-dim')).toHaveLength(2);
+    // Loading the graph does not issue another history query.
+    expect(globalThis.__postedMessages.filter(m => (m.data as any).type === 'getFileHistory')).toHaveLength(1);
+    await fireEvent.click(container.querySelector('[aria-label="Clear"]')!);
+    expect(commitStore.commits).toHaveLength(3);
+  });
+
+  it('clears the query on repository change and ignores its old response', async () => {
+    const { container } = render(App);
+    postMsg('repoList', { active: '/first', repos: [] });
+    const requestId = await search(container, 'file.txt');
+    postMsg('repoList', { active: '/second', repos: [] });
+    postMsg('fileHistoryResult', { requestId, recognized: true, path: 'file.txt', hashes: ['stale'] });
+    await waitFor(() => expect(container.querySelector<HTMLInputElement>('.search-input')!.value).toBe(''));
+    expect(container.querySelector('.file-history-label')).toBeNull();
+  });
+
+  it('requeries after history changes, but retains matches after loading more', async () => {
+    const { container } = render(App);
+    postMsg('logData', graph([row('new')]));
+    const requestId = await search(container, 'file.txt');
+    postMsg('fileHistoryResult', { requestId, recognized: true, path: 'file.txt', hashes: ['new'] });
+    await waitFor(() => expect(container.querySelector('.file-history-label')).toBeTruthy());
+    postMsg('logData', graph([row('new'), row('older')]));
+    expect(globalThis.__postedMessages.filter(m => (m.data as any).type === 'getFileHistory')).toHaveLength(1);
+    postMsg('fullRefresh', { logData: graph([row('newest'), row('new')]), branchData: { branches: [], tags: [], remotes: [], stashes: [], worktrees: [] } });
+    await waitFor(() => expect(globalThis.__postedMessages.filter(m => (m.data as any).type === 'getFileHistory')).toHaveLength(2));
+  });
+
+  it('keeps the current match and does not requery on unchanged periodic refreshes', async () => {
+    const { container } = render(App);
+    const commits = [row('new'), row('old')];
+    postMsg('logData', graph(commits));
+    const requestId = await search(container, 'file.txt');
+    postMsg('fileHistoryResult', { requestId, recognized: true, path: 'file.txt', hashes: ['new', 'old'] });
+    await waitFor(() => expect(container.querySelector('.file-history-label')).toBeTruthy());
+    await fireEvent.keyDown(container.querySelector('.search-bar')!, { key: 'Enter' });
+    expect(container.querySelector('.commit-row.search-current')?.textContent).toContain('old');
+    for (let i = 0; i < 3; i++) {
+      postMsg('fullRefresh', { logData: graph(commits), branchData: { branches: [], tags: [], remotes: [], stashes: [], worktrees: [] } });
+      await Promise.resolve();
+    }
+    expect(globalThis.__postedMessages.filter(m => (m.data as any).type === 'getFileHistory')).toHaveLength(1);
+    expect(container.querySelector('.commit-row.search-current')?.textContent).toContain('old');
+    expect(container.querySelector('.search-count')?.textContent).toContain('2');
+  });
+
+  it('opens file history from Explorer and exits fullscreen without changing selection', async () => {
+    const { container } = render(App);
+    postMsg('logData', graph([row('selected')]));
+    uiStore.selectCommit('selected');
+    uiStore.commitDetailFullscreen = true;
+    uiStore.viewMode = 'stats';
+    postMsg('showFileHistory', { path: '中文 file.ts' });
+    await waitFor(() => expect(latest('getFileHistory').payload.file).toBe('中文 file.ts'));
+    expect(uiStore.commitDetailFullscreen).toBe(false);
+    expect(uiStore.viewMode).toBe('graph');
+    expect(uiStore.selectedCommitHash).toBe('selected');
+    expect(container.querySelector<HTMLInputElement>('.search-input')!.value).toBe('中文 file.ts');
+  });
+
+  it('opens file history from the detail menu and exits fullscreen without changing selection', async () => {
+    const { container } = render(App);
+    postMsg('logData', graph([row('selected')]));
+    uiStore.selectCommit('selected');
+    uiStore.showBottomPanel = true;
+    uiStore.commitDetailFullscreen = true;
+    await waitFor(() => expect(container.querySelector('.top-tab')).toBeTruthy());
+    postMsg('commitDiffData', { hash: 'selected', files: [{ path: 'file.txt', status: 'D' }] });
+    const changes = [...container.querySelectorAll<HTMLButtonElement>('.top-tab')].find(b => /changes/i.test(b.textContent ?? ''))!;
+    await fireEvent.click(changes);
+    await fireEvent.contextMenu(container.querySelector('.file-item')!);
+    const history = [...container.querySelectorAll<HTMLButtonElement>('.context-menu button')].find(b => b.textContent?.trim() === 'Show File History')!;
+    await fireEvent.click(history);
+    await waitFor(() => expect(latest('getFileHistory').payload.file).toBe('file.txt'));
+    expect(uiStore.commitDetailFullscreen).toBe(false);
+    expect(uiStore.selectedCommitHash).toBe('selected');
+    expect(uiStore.showBottomPanel).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('.search-input')!.value).toBe('file.txt');
   });
 });

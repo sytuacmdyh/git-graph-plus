@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { slide } from 'svelte/transition';
   import { getVsCodeApi } from './lib/vscode-api';
   import { commitStore } from './lib/stores/commits.svelte';
@@ -45,7 +45,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
   import FlowStartModal from './components/modals/FlowStartModal.svelte';
   import FlowFinishModal from './components/modals/FlowFinishModal.svelte';
   import BisectBanner from './components/common/BisectBanner.svelte';
-  import type { FlowConfig } from './lib/types';
+  import type { FlowConfig, FileHistoryResult, FileHistoryTarget, BranchData, Commit } from './lib/types';
   import { tooltip } from './lib/actions/tooltip';
   import DirtyActionModal from './components/modals/DirtyActionModal.svelte';
   import { dragRebaseMessage, dragMergeMessage } from './lib/utils/dragDrop';
@@ -54,6 +54,10 @@ import AmendModal from './components/modals/AmendModal.svelte';
 
   let flowConfig = $state<FlowConfig | null>(null);
   let bisectMessage = $state<string | null>(null);
+  let searchBar: SearchBar | undefined = $state();
+  let searchRequestSequence = 0;
+  let pendingFileHistory: { requestId: string; resolve: (result: FileHistoryResult) => void; reject: (error: Error) => void } | null = null;
+  let pendingNavigation: { requestId: string; hash: string; resolve: () => void; reject: (error: Error) => void } | null = null;
   let searchMatchedHashes = $state<Set<string> | null>(null);
   let searchNavigateHash = $state<string | null>(null);
   let headOffscreen = $state(false);
@@ -82,26 +86,79 @@ import AmendModal from './components/modals/AmendModal.svelte';
     document.documentElement.style.setProperty('--badge-bar-width', `${uiStore.badgeBarWidth}px`);
   });
 
+  function filtersDiffer(data: { remoteFilter?: string[]; branches?: string[] }): boolean {
+    return (data.remoteFilter !== undefined && JSON.stringify(remoteFilter) !== JSON.stringify(data.remoteFilter))
+      || (data.branches !== undefined && JSON.stringify(branchFilter) !== JSON.stringify(data.branches));
+  }
+
+  function refsDiffer(data: BranchData): boolean {
+    const signature = (d: Pick<BranchData, 'branches' | 'tags' | 'remotes'>) => JSON.stringify([
+      d.branches.map(b => [b.name, b.hash, b.current]).sort(),
+      d.tags.map(tag => [tag.name, tag.hash]).sort(),
+      d.remotes.map(remote => remote.name).sort(),
+    ]);
+    return signature(branchStore) !== signature(data);
+  }
+
+  function commitsDiffer(next: Commit[]): boolean {
+    const before = commitStore.commits.filter(c => c.hash !== 'UNCOMMITTED');
+    const after = next.filter(c => c.hash !== 'UNCOMMITTED');
+    // Pagination extends/trims the same prefix; status refreshes only alter the
+    // virtual working-tree row. Neither changes the file's commit history.
+    if (!before.length || !after.length) return before.length !== after.length;
+    return before.slice(0, Math.min(before.length, after.length)).some((c, i) => c.hash !== after[i].hash);
+  }
+
   onMount(() => {
     uiStore.bottomPanelHeight = Math.round(window.innerHeight * BOTTOM_PANEL_DEFAULT_RATIO);
 
     function handleMessage(event: MessageEvent) {
       const msg = event.data;
       switch (msg.type) {
-        case 'logData':
+        case 'logData': {
+          const navigation = pendingNavigation;
+          if (msg.payload.requestId && msg.payload.requestId !== navigation?.requestId) break;
+          const historyChanged = filtersDiffer(msg.payload) || (msg.payload.historyChanged && commitsDiffer(msg.payload.commits));
           if (msg.payload.remoteFilter !== undefined) remoteFilter = msg.payload.remoteFilter;
           if (msg.payload.branches !== undefined) branchFilter = msg.payload.branches;
           commitStore.setData(msg.payload);
+          if (msg.payload.requestId && navigation) {
+            pendingNavigation = null;
+            if (commitStore.getCommit(navigation.hash)) {
+              searchNavigateHash = navigation.hash;
+              navigation.resolve();
+            } else navigation.reject(new Error(t('search.commitUnavailable')));
+          } else if (historyChanged) searchBar?.refresh();
+          if (pendingNavigation) commitStore.setLoadingMore(true);
           break;
-        case 'branchData':
+        }
+        case 'showFileHistory':
+          void showFileHistory(msg.payload);
+          break;
+        case 'fileHistoryResult': {
+          const request = pendingFileHistory;
+          if (!request || request.requestId !== msg.payload.requestId) break;
+          pendingFileHistory = null;
+          if (msg.payload.error) request.reject(new Error(msg.payload.error));
+          else request.resolve(msg.payload);
+          break;
+        }
+        case 'branchData': {
+          const changed = refsDiffer(msg.payload);
           branchStore.setData(msg.payload);
+          if (changed) searchBar?.refresh();
           break;
-        case 'fullRefresh':
+        }
+        case 'fullRefresh': {
+          const changed = filtersDiffer(msg.payload.logData) || refsDiffer(msg.payload.branchData) || commitsDiffer(msg.payload.logData.commits);
           remoteFilter = msg.payload.logData.remoteFilter ?? [];
           branchFilter = msg.payload.logData.branches ?? [];
           branchStore.setData(msg.payload.branchData);
           commitStore.setData(msg.payload.logData);
+          if (changed) searchBar?.refresh();
+          if (pendingNavigation) commitStore.setLoadingMore(true);
           break;
+        }
         case 'setLocale':
           i18n.setLocale(msg.payload.locale);
           if (msg.payload.homeDir) uiStore.homeDir = msg.payload.homeDir;
@@ -128,6 +185,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
           avatarStore.receive(msg.payload.email, msg.payload.size, msg.payload.dataUri);
           break;
         case 'repoList':
+          if (uiStore.activeRepo !== msg.payload.active) searchBar?.clear();
           uiStore.repos = msg.payload.repos;
           uiStore.activeRepo = msg.payload.active;
           commitStore.notGitRepo = false;
@@ -143,6 +201,15 @@ import AmendModal from './components/modals/AmendModal.svelte';
           commitStore.setLoading(false);
           break;
         case 'error':
+          if (msg.payload.requestId) {
+            if (pendingNavigation && msg.payload.requestId === pendingNavigation.requestId) {
+              const request = pendingNavigation;
+              pendingNavigation = null;
+              commitStore.setLoadingMore(false);
+              request.reject(new Error(msg.payload.message));
+            }
+            break;
+          }
           uiStore.setError(msg.payload.message);
           commitStore.setLoading(false);
           // Close only the modal that originated the failing operation. An
@@ -257,6 +324,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
 
     if (ctrl && e.key === 'r') {
       e.preventDefault();
+      searchBar?.refresh();
       commitStore.setLoading(true);
       vscode.postMessage({ type: 'getLog', payload: {
         limit: commitStore.currentLimit || undefined,
@@ -290,11 +358,53 @@ import AmendModal from './components/modals/AmendModal.svelte';
 
   function handleSearchResults(hashes: Set<string> | null) {
     searchMatchedHashes = hashes;
-    searchNavigateHash = null;
+    if (!searchNavigateHash || !hashes?.has(searchNavigateHash)) searchNavigateHash = null;
   }
 
-  function handleSearchNavigate(hash: string) {
-    searchNavigateHash = hash;
+  function cancelSearchRequests() {
+    const error = new Error('Search superseded');
+    pendingFileHistory?.reject(error);
+    pendingFileHistory = null;
+    if (pendingNavigation) {
+      pendingNavigation.reject(error);
+      commitStore.setLoadingMore(false);
+    }
+    pendingNavigation = null;
+    vscode.postMessage({ type: 'cancelFileHistory' });
+  }
+
+  function requestFileHistory(file: string): Promise<FileHistoryResult> {
+    const requestId = `file-history-${++searchRequestSequence}`;
+    return new Promise((resolve, reject) => {
+      pendingFileHistory = { requestId, resolve, reject };
+      vscode.postMessage({ type: 'getFileHistory', payload: {
+        requestId, file, branches: [...branchFilter], remoteFilter: [...remoteFilter],
+      } });
+    });
+  }
+
+  function handleSearchNavigate(hash: string): void | Promise<void> {
+    if (commitStore.getCommit(hash)) {
+      searchNavigateHash = hash;
+      return;
+    }
+    const requestId = `file-history-navigation-${++searchRequestSequence}`;
+    commitStore.setLoadingMore(true);
+    return new Promise((resolve, reject) => {
+      pendingNavigation = { requestId, hash, resolve, reject };
+      vscode.postMessage({ type: 'getLog', payload: {
+        targetHash: hash, requestId,
+        limit: commitStore.currentLimit || undefined,
+        branches: [...branchFilter], remoteFilter: [...remoteFilter],
+      } });
+    });
+  }
+
+  async function showFileHistory(target: FileHistoryTarget) {
+    uiStore.commitDetailFullscreen = false;
+    uiStore.viewMode = 'graph';
+    await tick();
+    searchBar?.showFileHistory(target.oldPath ?? target.path);
   }
 
   function handleJumpToHead() {
@@ -310,6 +420,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
         return b.remote ? filter.includes(b.remote) : filter.includes('local');
       });
     }
+    searchBar?.refresh();
     commitStore.setLoading(true);
     vscode.postMessage({
       type: 'getLog',
@@ -323,6 +434,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
 
   function handleBranchFilterChange(branches: string[]) {
     branchFilter = branches;
+    searchBar?.refresh();
     commitStore.setLoading(true);
     vscode.postMessage({
       type: 'getLog',
@@ -462,6 +574,9 @@ import AmendModal from './components/modals/AmendModal.svelte';
     {#if uiStore.viewMode === 'graph'}
       {#if !bisectMessage && !conflict && !rebasePaused}
         <SearchBar
+          bind:this={searchBar}
+          onFileHistory={requestFileHistory}
+          onQueryChange={cancelSearchRequests}
           onResults={handleSearchResults}
           onNavigate={handleSearchNavigate}
           remotes={branchStore.remotes.map(r => r.name)}
@@ -499,7 +614,7 @@ import AmendModal from './components/modals/AmendModal.svelte';
           </div>
         {/if}
         <div class="bottom-area" class:fullscreen={uiStore.commitDetailFullscreen} style={uiStore.commitDetailFullscreen ? '' : `height: ${uiStore.bottomPanelHeight}px;`}>
-          <BottomPanel />
+          <BottomPanel onShowFileHistory={showFileHistory} />
         </div>
       {/if}
     {:else if uiStore.viewMode === 'log'}

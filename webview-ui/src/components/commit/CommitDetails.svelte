@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Commit, DiffData, CommitSignature } from '../../lib/types';
+  import type { Commit, DiffData, CommitSignature, FileHistoryTarget } from '../../lib/types';
   import { getVsCodeApi } from '../../lib/vscode-api';
   import { branchStore } from '../../lib/stores/branches.svelte';
   import { uiStore } from '../../lib/stores/ui.svelte';
@@ -19,9 +19,10 @@
 
   interface Props {
     commit?: Commit;
+    onShowFileHistory?: (target: FileHistoryTarget) => void;
   }
 
-  let { commit }: Props = $props();
+  let { commit, onShowFileHistory }: Props = $props();
 
   // Commit message rendering: auto-detect Markdown per commit. When the message
   // has no Markdown we show plain text with no toggle. When it does, we default
@@ -42,6 +43,7 @@
 
   interface CommitFile {
     path: string;
+    oldPath?: string;
     status: string; // A=added, M=modified, D=deleted, R=renamed, C=copied
   }
 
@@ -422,6 +424,7 @@
     children: FileTreeNode[];
     isFile: boolean;
     status?: string;
+    oldPath?: string;
   }
 
   let expandedDirs = $state<Set<string>>(new Set());
@@ -429,7 +432,7 @@
   function buildFileTree(commitFiles: CommitFile[]): FileTreeNode[] {
     const root: FileTreeNode = { name: '', path: '', children: [], isFile: false };
 
-    for (const { path: filePath, status } of commitFiles) {
+    for (const { path: filePath, status, oldPath } of commitFiles) {
       const parts = filePath.split('/');
       let node = root;
       for (let i = 0; i < parts.length; i++) {
@@ -442,6 +445,7 @@
             children: [],
             isFile: isLast,
             status: isLast ? status : undefined,
+            oldPath: isLast ? oldPath : undefined,
           };
           node.children.push(child);
         }
@@ -830,6 +834,13 @@
                           action: () => { vscode.postMessage({ type: 'openDiff', payload: { file: node.path, staged } }); fileContextMenu = null; },
                         });
                       }
+                      if (node.status !== 'N' && onShowFileHistory) items.push({
+                        label: t('file.showHistory'),
+                        action: () => {
+                          onShowFileHistory?.({ path: node.path, oldPath: node.status === 'R' ? node.oldPath : undefined });
+                          fileContextMenu = null;
+                        },
+                      });
                       items.push({ separator: true, label: '', action: () => {} });
                       items.push({
                         label: t('file.revealInExplorer'),
@@ -954,6 +965,11 @@
                         }
                         fileContextMenu = null;
                       },
+                    });
+
+                    if (onShowFileHistory) items.push({
+                      label: t('file.showHistory'),
+                      action: () => { onShowFileHistory?.({ path: node.path }); fileContextMenu = null; },
                     });
 
                     // Reverse this file's change against the working tree.

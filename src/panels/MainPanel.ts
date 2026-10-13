@@ -56,6 +56,12 @@ export class MainPanel {
   private filterRestore: Promise<void> | null = null;
   private logSequence = 0;
   private searchSequence = 0;
+  private fileHistorySequence = 0;
+  private targetLogActive = false;
+  private warmedFileHistoryScope: string | null = null;
+  private graphReady = false;
+  private webviewReady = false;
+  private pendingFileHistoryPath: string | null = null;
   // Two independent guards: selecting a commit (loads its file list) and
   // selecting a file (loads that file's diff) are different axes, so a file
   // request must not invalidate a pending commit-files request and vice versa.
@@ -338,6 +344,25 @@ export class MainPanel {
     await this.refreshAll();
   }
 
+  /** Deliver external requests only after the webview has its repository graph. */
+  public static async showFileHistoryWithPanel(extensionUri: vscode.Uri, repoPath: string, file: string): Promise<void> {
+    if (!MainPanel.currentPanel) MainPanel.createOrShow(extensionUri, repoPath);
+    const panel = MainPanel.currentPanel;
+    if (!panel) return;
+    const switching = panel.switchRepo(repoPath);
+    panel.pendingFileHistoryPath = file;
+    panel.panel.reveal(vscode.ViewColumn.One);
+    await switching;
+    panel.processPendingFileHistory();
+  }
+
+  private processPendingFileHistory(): void {
+    if (!this.webviewReady || !this.graphReady || this.disposed || this.pendingFileHistoryPath === null) return;
+    const file = this.pendingFileHistoryPath;
+    this.pendingFileHistoryPath = null;
+    this.post({ type: 'showFileHistory', payload: { path: file } });
+  }
+
   private loadFilters(): void {
     const filters = MainPanel.filterState.get(this.repoPath);
     this.currentBranchFilter = filters.branches;
@@ -389,8 +414,13 @@ export class MainPanel {
    * stale response paint the previous repo's graph over the current one.
    */
   private swapRepo(newPath: string): void {
+    this.graphReady = false;
+    this.pendingFileHistoryPath = null;
     this.repoGeneration++;
     this.logSequence++;
+    this.fileHistorySequence++;
+    this.targetLogActive = false;
+    this.warmedFileHistoryScope = null;
     this.repoPath = newPath;
     this.gitService = this.createGitService(newPath);
 
@@ -450,15 +480,16 @@ export class MainPanel {
     try {
       switch (message.type) {
         case 'getLog': {
+          this.webviewReady = true;
           logSequence = ++this.logSequence;
+          this.targetLogActive = !!message.payload.targetHash;
           const gitService = this.gitService;
           await this.restoreFilters();
           if (generation !== this.repoGeneration || logSequence !== this.logSequence || this.disposed) break;
           const cfg = vscode.workspace.getConfiguration('gitGraphYzc');
           const sortOrder = cfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
           const includeSignature = cfg.get<boolean>('showSignatureStatus', true);
-          const requestedLimit = message.payload.limit ?? readInitialCommitCount();
-          this.currentLimit = requestedLimit;
+          let requestedLimit = message.payload.limit ?? readInitialCommitCount();
           // Omitted filters preserve the restored state; explicit [] means All.
           const effectiveFilter = message.payload.remoteFilter ?? this.currentRemoteFilter;
           const effectiveBranchFilter = message.payload.branches ?? this.currentBranchFilter;
@@ -466,11 +497,21 @@ export class MainPanel {
           this.currentBranchFilter = effectiveBranchFilter;
           this.saveFilters();
           const logPayload = { ...message.payload, remoteFilter: effectiveFilter, branches: effectiveBranchFilter, limit: requestedLimit + 1, sortOrder, includeSignature };
-          const [allFetched, logBranches] = await Promise.all([
+          let [allFetched, logBranches] = await Promise.all([
             gitService.log(logPayload),
             gitService.branches(),
           ]);
           if (generation !== this.repoGeneration || logSequence !== this.logSequence || this.disposed) break;
+          // Grow the ordinary graph, preserving intervening commits and edges.
+          while (message.payload.targetHash
+            && !allFetched.slice(0, requestedLimit).some(c => c.hash === message.payload.targetHash)
+            && allFetched.length > requestedLimit) {
+            requestedLimit += readLoadMoreCommitCount();
+            allFetched = await gitService.log({ ...logPayload, limit: requestedLimit + 1 });
+            if (generation !== this.repoGeneration || logSequence !== this.logSequence || this.disposed) return;
+          }
+          this.currentLimit = requestedLimit;
+          this.targetLogActive = false;
           const hasMore = allFetched.length > requestedLimit;
           const commits = hasMore ? allFetched.slice(0, requestedLimit) : allFetched;
           const branchColorResolver = this.makeBranchColorResolver();
@@ -478,6 +519,7 @@ export class MainPanel {
           this.post({
             type: 'logData',
             payload: {
+              ...(message.payload.requestId ? { requestId: message.payload.requestId, targetHash: message.payload.targetHash } : {}),
               commits,
               hasMore,
               currentLimit: requestedLimit,
@@ -492,6 +534,16 @@ export class MainPanel {
               branches: effectiveBranchFilter,
             },
           });
+          this.graphReady = true;
+          this.processPendingFileHistory();
+          const warmScope = JSON.stringify([effectiveBranchFilter, effectiveFilter, sortOrder]);
+          if (this.warmedFileHistoryScope !== warmScope) {
+            this.warmedFileHistoryScope = warmScope;
+            // Filename indexing runs after posting the graph; typing never has
+            // to wait for index construction when it has already warmed up.
+            void gitService.prepareFileHistory({ branches: effectiveBranchFilter, remoteFilter: effectiveFilter, sortOrder })
+              .catch(() => { if (generation === this.repoGeneration && this.warmedFileHistoryScope === warmScope) this.warmedFileHistoryScope = null; });
+          }
           break;
         }
         case 'getBranches': {
@@ -1237,6 +1289,35 @@ export class MainPanel {
           this.post({ type: 'searchResults', payload: { commits: found ? [found] : [], graph: [] } });
           break;
         }
+        case 'cancelFileHistory': {
+          this.fileHistorySequence++;
+          if (this.targetLogActive) {
+            this.logSequence++;
+            this.targetLogActive = false;
+          }
+          break;
+        }
+        case 'getFileHistory': {
+          const seq = ++this.fileHistorySequence;
+          const gitService = this.gitService;
+          const isCurrent = () => seq === this.fileHistorySequence && generation === this.repoGeneration && !this.disposed;
+          try {
+            const sortOrder = vscode.workspace.getConfiguration('gitGraphYzc')
+              .get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
+            const result = await gitService.getFileHistory(message.payload.file, {
+              branches: message.payload.branches,
+              remoteFilter: message.payload.remoteFilter,
+              sortOrder,
+            });
+            if (isCurrent()) this.post({ type: 'fileHistoryResult', payload: { requestId: message.payload.requestId, ...result } });
+          } catch (err) {
+            if (isCurrent()) this.post({ type: 'fileHistoryResult', payload: {
+              requestId: message.payload.requestId, recognized: false, path: message.payload.file, hashes: [],
+              error: err instanceof GitError ? formatGitError(err.stderr) : err instanceof Error ? err.message : String(err),
+            } });
+          }
+          break;
+        }
         case 'searchByFile': {
           const seq = ++this.searchSequence;
           const results = await this.gitService.searchByFile(message.payload.file);
@@ -1630,6 +1711,12 @@ export class MainPanel {
       // Use stderr directly for GitError (cleaner than the full "git xxx failed (exit N): ..." message)
       const errorMessage = err instanceof GitError ? formatGitError(err.stderr) : err instanceof Error ? err.message : String(err);
 
+      if (message.type === 'getLog' && message.payload.requestId) {
+        this.targetLogActive = false;
+        this.post({ type: 'error', payload: { message: errorMessage, source: 'getLog', requestId: message.payload.requestId } });
+        return;
+      }
+
       // Detect non-git-repo errors early to avoid unnecessary follow-up git calls
       if (err instanceof GitError && /not a git repository/.test(err.stderr)) {
         this.post({ type: 'notGitRepo' });
@@ -1847,7 +1934,7 @@ export class MainPanel {
         // Handle empty repository (0 commits) gracefully. The webview renders from
         // paths/links/dots; the legacy GraphNode[] is unused so we don't build it.
         const fg = allCommits.length > 0 ? buildFullGraph(allCommits, branches, this.makeBranchColorResolver()) : { paths: [], links: [], dots: [], commitLeftMargin: [] };
-        return { commits: allCommits, hasMore, currentLimit: refreshLimit, graph: [], paths: fg.paths, links: fg.links, dots: fg.dots, commitLeftMargin: fg.commitLeftMargin, remoteFilter, branches: branchFilter };
+        return { commits: allCommits, hasMore, currentLimit: refreshLimit, historyChanged: scope === 'full', graph: [], paths: fg.paths, links: fg.links, dots: fg.dots, commitLeftMargin: fg.commitLeftMargin, remoteFilter, branches: branchFilter };
       };
 
       if (scope === 'status') {
@@ -1879,6 +1966,8 @@ export class MainPanel {
         });
         MainPanel.onSidebarRefresh?.();
       }
+      this.graphReady = true;
+      this.processPendingFileHistory();
     } catch (err) {
       if (!isCurrent()) return;
       console.warn('Git Graph YZC: refresh failed:', err instanceof Error ? err.message : err);

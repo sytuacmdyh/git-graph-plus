@@ -279,7 +279,14 @@ export const ko: Record<string, string> = {
   'details.restore': '패널 복원',
 
   // Search bar
-  'search.placeholder': 'Commit 검색 (메시지, 작성자, 해시, 브랜치, 태그)',
+  'search.fileHistory': '파일 이력',
+  'search.noFileHistory': 'Commit 이력 없음',
+  'search.loading': '검색 중…',
+  'search.loadingHistoryCommit': 'Commit 로딩 중…',
+  'search.failed': '검색 실패',
+  'search.commitUnavailable': '선택한 브랜치에서 더 이상 이 Commit을 찾을 수 없습니다',
+  'file.showHistory': '파일 변경 이력 보기',
+  'search.placeholder': 'Commit 검색 (메시지, 작성자, 해시, 브랜치, 태그) 또는 파일의 전체 상대 경로 입력',
   'search.search': '검색',
   'search.clear': '지우기',
   'search.noResults': '결과 없음',

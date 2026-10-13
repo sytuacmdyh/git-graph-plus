@@ -461,7 +461,7 @@ describe('GitService', () => {
   describe('getUncommittedDiff', () => {
     it('returns staged and unstaged file lists', async () => {
       // porcelain format: XY PATH (X=staged, Y=unstaged)
-      mockExec(service, async () => 'M  src/foo.ts\nA  src/bar.ts\n M src/old.ts\n?? src/new.ts\n');
+      mockExec(service, async () => 'M  src/foo.ts\0A  src/bar.ts\0 M src/old.ts\0?? src/new.ts\0');
 
       const result = await service.getUncommittedDiff();
       expect(result.staged).toEqual([
@@ -485,7 +485,7 @@ describe('GitService', () => {
       // Nested git repos (not registered as submodules) surface as untracked
       // directories with a trailing slash. They should be flagged with status
       // 'N' so the UI can show a meaningful hint instead of an empty diff.
-      mockExec(service, async () => '?? nested-repo/\n?? submodule-test/\n?? src/new.ts\n');
+      mockExec(service, async () => '?? nested-repo/\0?? submodule-test/\0?? src/new.ts\0');
 
       const result = await service.getUncommittedDiff();
       expect(result.unstaged).toEqual([
@@ -499,7 +499,7 @@ describe('GitService', () => {
       // Regression: trimming the whole output dropped the first line's leading
       // space, shifting columns so the file landed in `staged` with its first
       // character chopped off.
-      mockExec(service, async () => ' M src/foo.ts\n M src/bar.ts\n');
+      mockExec(service, async () => ' M src/foo.ts\0 M src/bar.ts\0');
 
       const result = await service.getUncommittedDiff();
       expect(result.staged).toEqual([]);

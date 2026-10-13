@@ -418,3 +418,19 @@ describe('CommitGraph signature icon', () => {
     uiStore.exitMultiSelect();
   });
 });
+
+describe('CommitGraph — search browsing during refresh', () => {
+  it('does not scroll back to the search target when background data is replaced', async () => {
+    const commits = Array.from({ length: 60 }, (_, i) => makeCommit(`h${i}`, `commit ${i}`));
+    commitStore.setData(makeGraphData(commits));
+    const { container } = render(CommitGraph, { searchNavigateHash: 'h20', searchMatchedHashes: new Set(['h20']) });
+    await tick();
+    const graph = container.querySelector<HTMLDivElement>('.commit-graph')!;
+    // The user scrolls away to browse neighboring history after the search jump.
+    graph.scrollTop = 1200;
+    await fireEvent.scroll(graph);
+    commitStore.setData(makeGraphData(commits.map(c => ({ ...c }))));
+    await tick();
+    expect(graph.scrollTop).toBe(1200);
+  });
+});

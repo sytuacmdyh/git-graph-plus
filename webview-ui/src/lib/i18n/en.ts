@@ -279,7 +279,14 @@ export const en: Record<string, string> = {
   'details.restore': 'Restore panel',
 
   // Search bar
-  'search.placeholder': 'Search commits (message, author, hash, branch, tag)',
+  'search.fileHistory': 'File history',
+  'search.noFileHistory': 'No commit history',
+  'search.loading': 'Searching…',
+  'search.loadingHistoryCommit': 'Loading commit…',
+  'search.failed': 'Search failed',
+  'search.commitUnavailable': 'Commit is no longer available in the selected branches',
+  'file.showHistory': 'Show File History',
+  'search.placeholder': 'Search commits (message, author, hash, branch, tag) or enter a full relative file path',
   'search.search': 'Search',
   'search.clear': 'Clear',
   'search.noResults': 'No results',
