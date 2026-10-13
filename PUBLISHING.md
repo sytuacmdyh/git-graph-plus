@@ -7,10 +7,21 @@
 ## 首次配置
 
 1. 在 [Open VSX](https://open-vsx.org/) 登录，按照[官方发布指南](https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions)关联 Eclipse 账号并签署 Publisher Agreement。
-2. 在 Open VSX 生成发布 Token。本地创建 namespace 时，将它设置为 `OVSX_PAT` 环境变量。
-3. 创建与 `package.json` 的 `publisher` 一致的 namespace：`npx --yes ovsx create-namespace sytuacmdyh`。发布者名称不必与 GitHub 用户名相同；已创建该 namespace 时无需重复创建。
-4. 在 GitHub 仓库 **Settings → Secrets and variables → Actions** 中新增 repository secret `OVSX_PAT`，填入发布 Token。
+2. 确认与 `package.json` 的 `publisher` 一致的 namespace `sytuacmdyh` 已存在，且扩展 `sytuacmdyh.git-graph-yzc` 至少已有一个有效版本。若从零开始，需要先用个人发布 Token（本地 `OVSX_PAT` 环境变量）执行 `npx --yes ovsx create-namespace sytuacmdyh` 并首次发布；已有 namespace 和扩展时跳过此步骤。
+3. 以 namespace 所有者身份，在 Open VSX 为该扩展添加 GitHub Actions Trusted Publisher，按下表填写。
+4. 工作流通过 GitHub Actions OIDC 获取短期发布凭证，无需配置 `OVSX_PAT` repository secret。旧 secret 可以删除；工作流不再读取它，也不要重新注入 `OVSX_PAT`，因为个人 Token 会优先于 Trusted Publishing 使用。
 5. 确认仓库启用了 Actions。GitHub Release 使用工作流内置的 `GITHUB_TOKEN`，无需额外的 `RELEASE_TOKEN`；不需要 VS Code Marketplace 的 `VSCE_PAT`。
+
+| Trusted Publisher 字段 | 值 |
+| --- | --- |
+| Repository owner | `sytuacmdyh` |
+| Repository name | `git-graph-plus` |
+| Workflow filename | `release.yml`（只填文件名） |
+| Environment name | 留空（当前工作流未配置 GitHub Environment） |
+
+如果已有 Trusted Publisher 填写了 Environment name，需要将其清空，或在 `.github/workflows/release.yml` 的 `package-and-publish` job 中配置完全相同的 `environment`。
+
+发布 job 已授予 `id-token: write`，并显式运行 `ovsx publish --trusted-publishing`。完整配置说明见 [Open VSX Trusted Publishing](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing)。
 
 ## 先打包测试
 
@@ -42,7 +53,7 @@ git push origin v0.1.0
 
 也可以在 `main` 上手动运行工作流并勾选 **publish**，直接发布当前版本；手动运行不会创建 GitHub Release。其他分支上的手动运行仅打包。
 
-缺少 `OVSX_PAT` 时，市场发布步骤会失败，但已经生成的 VSIX 仍可从 artifact 下载，标签构建的 GitHub Release 也仍保留。
+Trusted Publisher 配置与仓库、工作流或 Environment 不匹配，或无法获取 OIDC 凭证时，市场发布步骤会失败。检查上述配置后可重新运行；已经生成的 VSIX 仍可从 artifact 下载，标签构建的 GitHub Release 也仍保留。
 
 发布成功后，可以通过 Open VSX 的 `publisher/name` 页面查看版本。Cursor 的搜索同步与审核由 Cursor 管理，可能不会立即出现；同步期间可通过 VSIX 安装。
 
