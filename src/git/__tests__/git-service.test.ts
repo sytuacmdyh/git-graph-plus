@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GitService, GitError, binCommitTime, buildAmendCommandStr } from '../git-service';
+import type { LogOptions, WorktreeInfo } from '../types';
 
 // Access private exec method via prototype for mocking
 function mockExec(service: GitService, fn: (args: string[]) => Promise<string>) {
@@ -82,6 +83,88 @@ describe('GitService', () => {
     it('propagates a worktree list failure', async () => {
       mockExec(service, async () => { throw new Error('list failed'); });
       await expect(service.worktreeList()).rejects.toThrow('list failed');
+    });
+  });
+
+  describe('log worktree HEADs', () => {
+    const mainHash = 'a'.repeat(40);
+    const branchHash = 'b'.repeat(40);
+    const detachedHash = 'c'.repeat(40);
+    let worktrees: WorktreeInfo[];
+    let exec: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      worktrees = [
+        { path: '/repo/main', hash: mainHash, branch: 'main', detached: false, isMain: true, locked: false, prunable: false },
+        { path: '/repo/feature', hash: branchHash, branch: 'feature', detached: false, isMain: false, locked: false, prunable: false },
+        { path: '/repo/inspect', hash: detachedHash, branch: '', detached: true, isMain: false, locked: false, prunable: false },
+      ];
+      vi.spyOn(service, 'worktreeList').mockImplementation(async () => worktrees);
+      vi.spyOn(service, 'stashList').mockResolvedValue([]);
+      exec = vi.fn(async (args: string[]) => {
+        if (args[0] !== 'log') return '';
+        return [mainHash, branchHash, detachedHash].map(hash => '\x01\x02\x03' + [
+          hash, hash.slice(0, 7), 'Author', 'a@b.c', '2024-01-01',
+          'Committer', 'c@b.c', '2024-01-01', 'subject', '',
+          hash === mainHash ? 'HEAD -> main' : '', '',
+        ].join('\x00')).join('\n');
+      });
+      mockExec(service, exec);
+    });
+
+    it('walks unique HEADs and decorates existing rows for every worktree at the same SHA', async () => {
+      worktrees.push({ ...worktrees[2], path: '/repo/inspect-again' });
+      const commits = await service.log();
+      const args = exec.mock.calls.find(([args]) => args[0] === 'log')![0];
+      for (const hash of [mainHash, branchHash, detachedHash]) {
+        expect(args.filter((arg: string) => arg === hash)).toHaveLength(1);
+      }
+      expect(commits).toHaveLength(3);
+      expect(commits[0].refs).toContainEqual({ type: 'head', name: 'main' });
+      for (const worktree of worktrees) {
+        expect(commits.find(c => c.hash === worktree.hash)?.refs).toContainEqual({
+          type: 'worktree', name: worktree.path.split('/').pop(), worktree,
+        });
+      }
+      expect(commits[2].refs.filter(r => r.type === 'head')).toEqual([]);
+    });
+
+    it('uses the same worktree tips on subsequent pages', async () => {
+      await service.log({ limit: 2, skip: 2 });
+      const args = exec.mock.calls.find(([args]) => args[0] === 'log')![0];
+      expect(args).toEqual(expect.arrayContaining([mainHash, branchHash, detachedHash, '--skip=2', '--max-count=2']));
+    });
+
+    it.each<LogOptions>([
+      { branch: 'main' }, { branches: ['main'] }, { remoteFilter: ['local'] }, { remoteFilter: ['origin'] },
+    ])('respects explicit history scope %j while still decorating loaded HEADs', async options => {
+      const commits = await service.log(options);
+      const args = exec.mock.calls.find(([args]) => args[0] === 'log')![0];
+      expect(args).not.toEqual(expect.arrayContaining([mainHash]));
+      expect(args).not.toEqual(expect.arrayContaining([branchHash]));
+      expect(args).not.toEqual(expect.arrayContaining([detachedHash]));
+      expect(commits[0].refs).toContainEqual(expect.objectContaining({ type: 'worktree' }));
+    });
+
+    it('skips unborn or invalid HEADs and tolerates missing objects', async () => {
+      worktrees.push(...['', '0'.repeat(40), '--all', 'not-a-hash'].map(hash => ({ ...worktrees[2], hash })));
+      await service.log();
+      const args = exec.mock.calls.find(([args]) => args[0] === 'log')![0];
+      expect(args).toContain('--ignore-missing');
+      for (const hash of ['', '0'.repeat(40), '--all', 'not-a-hash']) expect(args).not.toContain(hash);
+    });
+
+    it('still loads history if listing worktrees fails', async () => {
+      vi.mocked(service.worktreeList).mockRejectedValue(new Error('list failed'));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const commits = await service.log();
+        expect(commits).toHaveLength(3);
+        expect(commits.flatMap(c => c.refs).some(r => r.type === 'worktree')).toBe(false);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('list failed'));
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 

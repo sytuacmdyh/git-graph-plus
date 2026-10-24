@@ -73,6 +73,33 @@ describe('CommitGraph smoke', () => {
     expect(container.querySelectorAll('.commit-row').length).toBe(3);
   });
 
+  it('renders worktree HEAD badges with detached status on their commit rows', async () => {
+    const detached = makeCommit('detached', 'Detached HEAD inspect snapshot', ['main']);
+    const main = makeCommit('main', 'Main graph tip');
+    main.refs = [{ type: 'head', name: 'main' }];
+    for (const [commit, path, isDetached] of [
+      [main, '/repo/main-checkout', false], [detached, '/repo/inspect', true],
+    ] as const) {
+      commit.refs.push({
+        type: 'worktree', name: path.split('/').pop()!,
+        worktree: { path, hash: commit.hash, detached: isDetached, branch: isDetached ? '' : 'main', isMain: !isDetached, locked: false, prunable: false },
+      });
+    }
+    commitStore.setData(makeGraphData([detached, main]));
+    const { container } = render(CommitGraph, {});
+    await tick();
+    const rows = container.querySelectorAll<HTMLElement>('.commit-row');
+    expect(rows).toHaveLength(2);
+    const detachedBadge = rows[0].querySelector<HTMLElement>('.badge-worktree')!;
+    expect(detachedBadge.textContent?.trim()).toBe('inspect (Detached HEAD)');
+    expect(detachedBadge.querySelector('.codicon-worktree')).toBeTruthy();
+    expect(detachedBadge.getAttribute('role')).not.toBe('button');
+    expect(detachedBadge.getAttribute('draggable')).not.toBe('true');
+    expect(rows[0].textContent).toContain('Detached HEAD inspect snapshot');
+    expect(rows[1].querySelector('.badge-worktree')?.textContent?.trim()).toBe('main-checkout');
+    expect(rows[1].querySelector('.badge-head')?.textContent?.trim()).toBe('main');
+  });
+
   it('clicking a commit row sets selectedCommitHash after the dbl-click timeout fires', async () => {
     commitStore.setData(makeGraphData([
       makeCommit('h1', 'first'),

@@ -2,7 +2,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { writeFile, unlink, stat } from 'fs/promises';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { randomUUID } from 'crypto';
 import { bufferStream, BufferOverflowError } from '../utils/buffer-stream';
 import { getGitBinaryPath } from './git-binary';
@@ -550,10 +550,31 @@ export class GitService {
       args.push(options.branch);
     }
 
-    // Resolve stashes before running the log: their base commits may need to be
-    // added as extra walk start points (below). stashList() is deduped/cached,
-    // so awaiting it here doesn't add a round-trip versus the old Promise.all.
-    const stashes = await this.stashList();
+    // Resolve both sources before walking history. Reuse the sidebar's worktree
+    // metadata so the walk tips and the badges describe the same HEADs.
+    const [stashes, worktrees] = await Promise.all([
+      this.stashList(),
+      this.worktreeList().catch(err => {
+        this.warn(`worktree log error: ${err instanceof Error ? err.message : err}`);
+        return [] as WorktreeInfo[];
+      }),
+    ]);
+
+    // Detached worktree HEADs may be unreachable from every branch/tag. Keep
+    // these tips on every page so --skip walks the same history as page one.
+    // Explicit branch/remote filters still determine their own history scope.
+    if (
+      !options?.branch &&
+      !options?.branches?.length &&
+      !options?.remoteFilter?.length
+    ) {
+      const hashes = [...new Set(worktrees.map(w => w.hash))]
+        .filter(hash => /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(hash) && !/^0+$/.test(hash));
+      if (hashes.length > 0) {
+        // Prunable worktrees can refer to objects that no longer exist.
+        args.push('--ignore-missing', ...hashes);
+      }
+    }
 
     // Include each stash's base commit as an extra rev-list start point so git
     // walks the stash's ancestry down to where it rejoins the main history.
@@ -672,6 +693,15 @@ export class GitService {
       } catch (err) {
         this.warn(`failed to check uncommitted status: ${err instanceof Error ? err.message : err}`);
       }
+    }
+
+    const commitsByHash = new Map(commits.map(commit => [commit.hash, commit]));
+    for (const worktree of worktrees) {
+      commitsByHash.get(worktree.hash)?.refs.push({
+        type: 'worktree',
+        name: basename(worktree.path),
+        worktree,
+      });
     }
 
     return commits;

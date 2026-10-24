@@ -849,7 +849,7 @@
       if (r.type === 'remote-branch' && r.name === 'HEAD') return false;
       return true;
     }).sort((a, b) => {
-      const order = { head: 0, branch: 1, 'remote-branch': 2, tag: 3, stash: 4, 'working-dir': 5 };
+      const order = { head: 0, branch: 1, 'remote-branch': 2, tag: 3, worktree: 4, stash: 5, 'working-dir': 6 };
       const typeOrder = (order[a.type] ?? 4) - (order[b.type] ?? 4);
       if (typeOrder !== 0) return typeOrder;
       // Alphabetical within same type for branches, tags, worktrees
@@ -1523,7 +1523,7 @@
                   }
                   return true;
                 }).sort((a, b) => {
-                  const order = { head: 0, branch: 1, 'remote-branch': 2, tag: 3, stash: 4, 'working-dir': 5 };
+                  const order = { head: 0, branch: 1, 'remote-branch': 2, tag: 3, worktree: 4, stash: 5, 'working-dir': 6 };
                   return (order[a.type] ?? 4) - (order[b.type] ?? 4);
                 }) as ref}
                   {@const hasRemote = (ref.type === 'branch' || ref.type === 'head') && (() => {
@@ -1557,6 +1557,16 @@
                       <i class="codicon codicon-cloud ref-icon"></i>
                     </span>
                   {/if}
+                  {#if ref.type === 'worktree'}
+                    <span
+                      class="ref-badge badge-fixed badge-worktree"
+                      style="--badge-color: #4caf50;"
+                      use:tooltip={t('graph.worktreeHead') + ': ' + (ref.worktree?.path ?? ref.name)}
+                    >
+                      <i class="codicon codicon-worktree ref-icon"></i>
+                      {ref.name}{#if ref.worktree?.detached}{' '}{t('toolbar.detachedHead')}{/if}
+                    </span>
+                  {:else}
                   <span
                     class="ref-badge"
                     style="--badge-color: {badgeColor};{ref.type === 'stash' ? ' --fixed-tint: 28%;' : ''}"
@@ -1636,6 +1646,7 @@
                       {ref.name}
                     {/if}
                   </span>
+                  {/if}
                 {/each}
                 {#if commit.hash === 'UNCOMMITTED'}
                   {@const counts = JSON.parse(commit.body || '{}')}

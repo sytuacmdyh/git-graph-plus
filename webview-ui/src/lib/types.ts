@@ -30,9 +30,11 @@ export interface PersonInfo {
 }
 
 export interface Ref {
-  type: 'branch' | 'remote-branch' | 'tag' | 'head' | 'stash' | 'working-dir';
+  type: 'branch' | 'remote-branch' | 'tag' | 'head' | 'stash' | 'worktree' | 'working-dir';
   name: string;
   remote?: string;
+  /** Present on synthetic worktree HEAD refs; shared with the sidebar. */
+  worktree?: WorktreeInfo;
 }
 
 export interface GraphNode {

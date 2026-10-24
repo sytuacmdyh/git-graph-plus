@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, rmSync } from 'fs';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { GitService } from '../../git-service';
 import { TempRepo, commit, createTempRepo, head, runGit } from './helpers';
 
@@ -335,6 +335,77 @@ describe('GitService integration — worktrees', () => {
       const list = await svc.worktreeList();
       expect(list.length).toBe(1);
       expect(list[0].isMain).toBe(true);
+    });
+  });
+
+  describe('log worktree HEADs', () => {
+    it('includes unreferenced detached commits and worktree badges from main and linked worktrees', async () => {
+      const mainHash = head(mainRepo.path);
+      const branchPath = siblingPath('graph-branch');
+      const detachedPath = siblingPath('graph-detached');
+      await svc.worktreeAdd(branchPath, undefined, 'graph-feature');
+      const branchHash = commit(branchPath, 'Branch graph tip');
+      runGit(mainRepo.path, ['worktree', 'add', '--detach', detachedPath, mainHash]);
+      const detachedBase = commit(detachedPath, 'Detached graph parent');
+      const detachedHash = commit(detachedPath, 'Detached HEAD inspect snapshot');
+      // Prove this is the regression case: branch/remote/tag globs cannot reach it.
+      expect(runGit(mainRepo.path, ['log', '--glob=refs/heads', '--glob=refs/remotes', '--glob=refs/tags', '--format=%H']))
+        .not.toContain(detachedHash);
+
+      for (const repoPath of [mainRepo.path, branchPath, detachedPath]) {
+        const commits = await new GitService(repoPath).log({ sortOrder: 'topological' });
+        expect(commits).toHaveLength(4);
+        expect(new Set(commits.map(c => c.hash)).size).toBe(commits.length);
+        for (const [hash, path, detached] of [
+          [mainHash, mainRepo.path, false], [branchHash, branchPath, false], [detachedHash, detachedPath, true],
+        ] as const) {
+          expect(commits.find(c => c.hash === hash)?.refs).toContainEqual(expect.objectContaining({
+            type: 'worktree', name: basename(path), worktree: expect.objectContaining({ path, hash, detached }),
+          }));
+        }
+        const detachedRow = commits.find(c => c.hash === detachedHash)!;
+        expect(detachedRow.subject).toBe('Detached HEAD inspect snapshot');
+        expect(detachedRow.parents).toEqual([detachedBase]);
+        expect(commits.findIndex(c => c.hash === detachedBase)).toBeGreaterThan(commits.indexOf(detachedRow));
+      }
+
+      const filtered = await svc.log({ branches: ['main'] });
+      expect(filtered.map(c => c.hash)).toEqual([mainHash]);
+      const localOnly = await svc.log({ remoteFilter: ['local'] });
+      expect(localOnly.some(c => c.hash === detachedHash)).toBe(false);
+
+      // Multiple detached worktrees at an existing tip produce badges, not rows.
+      const duplicatePath = siblingPath('graph-same-head');
+      runGit(mainRepo.path, ['worktree', 'add', '--detach', duplicatePath, detachedHash]);
+      const full = await svc.log({ sortOrder: 'topological' });
+      expect(full).toHaveLength(4);
+      expect(full.find(c => c.hash === detachedHash)?.refs.filter(r => r.type === 'worktree')).toHaveLength(2);
+      const first = await svc.log({ limit: 2, sortOrder: 'topological' });
+      const second = await svc.log({ limit: 2, skip: 2, sortOrder: 'topological' });
+      expect([...first, ...second]).toEqual(full);
+    });
+
+    it('includes a detached main HEAD when loading from a linked worktree', async () => {
+      const branchPath = siblingPath('graph-main-detached');
+      await svc.worktreeAdd(branchPath, undefined, 'graph-feature');
+      runGit(mainRepo.path, ['checkout', '--detach']);
+      const detachedHash = commit(mainRepo.path, 'Detached main graph tip');
+      expect(runGit(mainRepo.path, ['for-each-ref', `--contains=${detachedHash}`, '--format=%(refname)', 'refs/heads']).trim()).toBe('');
+
+      const commits = await new GitService(branchPath).log();
+      expect(commits.find(c => c.hash === detachedHash)?.refs).toContainEqual(expect.objectContaining({
+        type: 'worktree', name: basename(mainRepo.path),
+        worktree: expect.objectContaining({ hash: detachedHash, detached: true, isMain: true }),
+      }));
+    });
+
+    it('loads an empty repository with an unborn main HEAD', async () => {
+      const empty = createTempRepo();
+      try {
+        expect(await new GitService(empty.path).log()).toEqual([]);
+      } finally {
+        empty.cleanup();
+      }
     });
   });
 
