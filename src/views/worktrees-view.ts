@@ -29,7 +29,7 @@ export class WorktreesViewProvider implements vscode.TreeDataProvider<WorktreeIt
 
   private async doFetch(): Promise<void> {
     const id = ++this.fetchId;
-    try { this.cache = (await this.gitService.worktreeList()).map(w => new WorktreeItem(w, this.gitService.rootPath)); }
+    try { this.cache = (await this.gitService.worktreeList()).map(w => new WorktreeItem(w)); }
     catch { /* keep old cache */ }
     if (id === this.fetchId) { this.pending = null; this._onDidChangeTreeData.fire(); }
   }
@@ -41,34 +41,25 @@ export class WorktreesViewProvider implements vscode.TreeDataProvider<WorktreeIt
   async getChildren(element?: WorktreeItem): Promise<WorktreeItem[]> {
     if (element) return [];
     if (this.cache) return this.cache;
-    try { this.cache = (await this.gitService.worktreeList()).map(w => new WorktreeItem(w, this.gitService.rootPath)); }
+    try { this.cache = (await this.gitService.worktreeList()).map(w => new WorktreeItem(w)); }
     catch { /* ignore */ }
     return this.cache ?? [];
   }
 }
 
 class WorktreeItem extends vscode.TreeItem {
-  constructor(public readonly worktree: WorktreeInfo, repoPath: string) {
+  constructor(public readonly worktree: WorktreeInfo) {
+    const branch = worktree.branch || '(detached)';
     const label = worktree.isMain
-      ? `${worktree.branch} (main)`
-      : worktree.branch || '(detached)';
+      ? `${branch} (main)`
+      : branch;
     super(label, vscode.TreeItemCollapsibleState.None);
 
     this.contextValue = worktree.isMain ? 'worktree-main' : 'worktree';
     this.iconPath = new vscode.ThemeIcon(
       worktree.locked ? 'lock' : worktree.isMain ? 'home' : 'worktree'
     );
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const repoPathWithSlash = repoPath.endsWith('/') ? repoPath : repoPath + '/';
-    let displayPath: string;
-    if (worktree.path.startsWith(repoPathWithSlash)) {
-      displayPath = './' + worktree.path.substring(repoPathWithSlash.length);
-    } else if (homeDir) {
-      displayPath = worktree.path.replace(homeDir, '~');
-    } else {
-      displayPath = worktree.path;
-    }
-    this.description = worktree.isMain ? '' : displayPath;
+    this.description = [worktree.hash.substring(0, 7), worktree.subject].filter(Boolean).join('  ');
     this.command = {
       command: 'gitGraphYzc.openWorktree',
       title: 'Open Worktree',
@@ -76,7 +67,9 @@ class WorktreeItem extends vscode.TreeItem {
     };
     this.tooltip = [
       `Path: ${worktree.path}`,
-      `Branch: ${worktree.branch || '(detached)'}`,
+      `Branch: ${branch}`,
+      `HEAD: ${worktree.hash}`,
+      worktree.subject ? `Subject: ${worktree.subject}` : '',
       worktree.locked ? 'Locked' : '',
       worktree.prunable ? 'Prunable' : '',
     ].filter(Boolean).join('\n');

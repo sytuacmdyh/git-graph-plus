@@ -303,6 +303,34 @@ describe('GitService integration — worktrees', () => {
   }
 
   describe('worktreeList', () => {
+    it('returns each HEAD hash and subject for main, branched and detached worktrees', async () => {
+      const mainHash = head(mainRepo.path);
+      const branchPath = siblingPath('wt-branch-tip');
+      const detachedPath = siblingPath('wt-detached-tip');
+      await svc.worktreeAdd(branchPath, undefined, 'feature-tip');
+      const branchHash = commit(branchPath, 'Branch latest subject\n\nCommit body');
+      runGit(mainRepo.path, ['worktree', 'add', '--detach', detachedPath, mainHash]);
+      const detachedHash = commit(detachedPath, 'Detached latest subject');
+
+      const list = await svc.worktreeList();
+      expect(list).toHaveLength(3);
+      const expected = [
+        { path: mainRepo.path, hash: mainHash, subject: 'init', branch: 'main', isMain: true, detached: false },
+        { path: branchPath, hash: branchHash, subject: 'Branch latest subject', branch: 'feature-tip', isMain: false, detached: false },
+        { path: detachedPath, hash: detachedHash, subject: 'Detached latest subject', branch: '', isMain: false, detached: true },
+      ];
+      for (const entry of expected) {
+        const worktree = list.find(w => w.path === entry.path)!;
+        expect(worktree).toMatchObject(entry);
+        expect(worktree.hash.substring(0, 7)).toBe(entry.hash.substring(0, 7));
+      }
+
+      // Refresh from a linked worktree after its detached HEAD advances.
+      const updatedHash = commit(detachedPath, 'Detached next subject');
+      const refreshed = await new GitService(branchPath).worktreeList();
+      expect(refreshed.find(w => w.path === detachedPath)).toMatchObject({ hash: updatedHash, subject: 'Detached next subject' });
+    });
+
     it('returns the main worktree initially', async () => {
       const list = await svc.worktreeList();
       expect(list.length).toBe(1);

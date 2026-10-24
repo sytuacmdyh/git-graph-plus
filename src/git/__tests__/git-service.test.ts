@@ -13,6 +13,78 @@ describe('GitService', () => {
     service = new GitService('/tmp/test-repo');
   });
 
+  describe('worktreeList subject enrichment', () => {
+    function porcelain(hashes: string[]): string {
+      return hashes.map((hash, index) =>
+        `worktree /repo/${index}\nHEAD ${hash}\n${index === 0 ? 'branch refs/heads/main' : 'detached'}\n`
+      ).join('\n');
+    }
+
+    it('enriches main and detached HEADs once per distinct hash and dedupes concurrent callers', async () => {
+      const exec = vi.fn(async (args: string[]) => {
+        if (args[0] === 'worktree') return porcelain(['a'.repeat(40), 'b'.repeat(40), 'b'.repeat(40)]);
+        return args[3] === 'a'.repeat(40) ? 'Main subject\n' : 'Detached subject\n';
+      });
+      mockExec(service, exec);
+
+      const [list, concurrent] = await Promise.all([service.worktreeList(), service.worktreeList()]);
+      expect(list).toEqual(concurrent);
+      expect(list.map(w => w.subject)).toEqual(['Main subject', 'Detached subject', 'Detached subject']);
+      expect(list.map(w => w.hash)).toEqual(['a'.repeat(40), 'b'.repeat(40), 'b'.repeat(40)]);
+      expect(exec.mock.calls).toEqual([
+        [['worktree', 'list', '--porcelain']],
+        [['log', '-1', '--format=%s', 'a'.repeat(40), '--']],
+        [['log', '-1', '--format=%s', 'b'.repeat(40), '--']],
+      ]);
+    });
+
+    it('bounds concurrent subject lookups across many worktrees', async () => {
+      const hashes = Array.from({ length: 12 }, (_, i) => (i + 1).toString(16).repeat(40));
+      let active = 0;
+      let peak = 0;
+      mockExec(service, async args => {
+        if (args[0] === 'worktree') return porcelain(hashes);
+        active++;
+        peak = Math.max(peak, active);
+        await Promise.resolve();
+        active--;
+        return `Subject ${args[3]}\n`;
+      });
+
+      const list = await service.worktreeList();
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(4);
+      expect(list.map(w => w.subject)).toEqual(hashes.map(hash => `Subject ${hash}`));
+    });
+
+    it('retains unavailable HEADs and still enriches other worktrees', async () => {
+      mockExec(service, async args => {
+        if (args[0] === 'worktree') return porcelain(['a'.repeat(40), 'b'.repeat(40)]);
+        if (args[3] === 'a'.repeat(40)) throw new Error('missing commit');
+        return 'Available subject\n';
+      });
+
+      const list = await service.worktreeList();
+      expect(list).toHaveLength(2);
+      expect(list[0].hash).toBe('a'.repeat(40));
+      expect(list[0].subject).toBeUndefined();
+      expect(list[1].subject).toBe('Available subject');
+    });
+
+    it.each(['', porcelain(['', '0'.repeat(40)])])('skips lookups when there are no commit hashes (%j)', async raw => {
+      const exec = vi.fn(async () => raw);
+      mockExec(service, exec);
+      const list = await service.worktreeList();
+      expect(exec).toHaveBeenCalledTimes(1);
+      expect(list.every(w => w.subject === undefined)).toBe(true);
+    });
+
+    it('propagates a worktree list failure', async () => {
+      mockExec(service, async () => { throw new Error('list failed'); });
+      await expect(service.worktreeList()).rejects.toThrow('list failed');
+    });
+  });
+
   describe('stash index validation', () => {
     it('stashApply rejects negative index', async () => {
       await expect(service.stashApply(-1)).rejects.toThrow('Invalid stash index');

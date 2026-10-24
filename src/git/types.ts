@@ -161,6 +161,7 @@ export interface BranchData {
 export interface WorktreeInfo {
   path: string;
   hash: string;
+  subject?: string;
   branch: string;
   detached: boolean;
   locked: boolean;

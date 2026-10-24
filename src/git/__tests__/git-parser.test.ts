@@ -495,6 +495,7 @@ describe('parseWorktreeList', () => {
     const result = parseWorktreeList(raw);
     expect(result[1].detached).toBe(true);
     expect(result[1].branch).toBe('');
+    expect(result[1].hash).toBe('789abc');
   });
 
   it('should parse locked and prunable states', () => {

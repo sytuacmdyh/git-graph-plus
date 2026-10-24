@@ -2453,7 +2453,23 @@ export class GitService {
   async worktreeList(): Promise<WorktreeInfo[]> {
     return this.dedupe('worktreeList', async () => {
       const raw = await this.exec(['worktree', 'list', '--porcelain']);
-      return parseWorktreeList(raw);
+      const worktrees = parseWorktreeList(raw);
+      // Look up each distinct HEAD once, with bounded parallelism so a large
+      // worktree list doesn't flood the extension host with git processes.
+      const hashes = [...new Set(worktrees.map(w => w.hash))]
+        .filter(hash => hash && !/^0+$/.test(hash));
+      const subjects = new Map<string, string>();
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(4, hashes.length) }, async () => {
+        while (next < hashes.length) {
+          const hash = hashes[next++];
+          try {
+            const subject = await this.exec(['log', '-1', '--format=%s', hash, '--']);
+            subjects.set(hash, subject.trim());
+          } catch { /* Keep worktrees visible even if a HEAD is unavailable. */ }
+        }
+      }));
+      return worktrees.map(w => subjects.has(w.hash) ? { ...w, subject: subjects.get(w.hash) } : w);
     });
   }
 

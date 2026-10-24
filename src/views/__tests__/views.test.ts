@@ -170,16 +170,37 @@ describe('StashesViewProvider', () => {
 });
 
 describe('WorktreesViewProvider', () => {
-  it('labels the main worktree and shows a repo-relative path for linked ones', async () => {
+  it('shows the HEAD hash and subject for main, branched and detached worktrees', async () => {
     const worktreeList: WorktreeInfo[] = [
-      { path: '/repo', branch: 'main', isMain: true, detached: false, locked: false, prunable: false, hash: 'h' },
-      { path: '/repo/wt-feature', branch: 'feature', isMain: false, detached: false, locked: false, prunable: false, hash: 'h' },
+      { path: '/repo', branch: 'main', isMain: true, detached: false, locked: false, prunable: false, hash: 'a'.repeat(40), subject: 'Main tip' },
+      { path: '/repo/wt-feature', branch: 'feature', isMain: false, detached: false, locked: false, prunable: false, hash: 'b'.repeat(40), subject: 'Feature tip' },
+      { path: '/repo/wt-detached', branch: '', isMain: false, detached: true, locked: false, prunable: true, hash: 'c'.repeat(40), subject: 'Detached tip' },
     ];
     const items = await new WorktreesViewProvider(mockSvc({ worktreeList, rootPath: '/repo' })).getChildren();
-    expect(items[0].label).toBe('main (main)');
+    expect(items.map(i => i.label)).toEqual(['main (main)', 'feature', '(detached)']);
+    expect(items.map(i => i.description)).toEqual(['aaaaaaa  Main tip', 'bbbbbbb  Feature tip', 'ccccccc  Detached tip']);
     expect(themeId(items[0])).toBe('home');
-    expect(items[1].label).toBe('feature');
-    expect(items[1].description).toBe('./wt-feature');
+    expect(items.map(i => i.contextValue)).toEqual(['worktree-main', 'worktree', 'worktree']);
+    for (const [index, item] of items.entries()) {
+      expect(item.worktree).toBe(worktreeList[index]);
+      expect(item.command?.command).toBe('gitGraphYzc.openWorktree');
+      expect(item.command?.arguments).toEqual([item]);
+      expect(item.tooltip).toContain(`Path: ${item.worktree.path}`);
+      expect(item.tooltip).toContain(`HEAD: ${item.worktree.hash}`);
+      expect(item.tooltip).toContain(`Subject: ${item.worktree.subject}`);
+    }
+    expect(items[2].tooltip).toContain('Branch: (detached)');
+    expect(items[2].tooltip).toContain('Prunable');
+  });
+
+  it('keeps detached main identity and the hash visible when the subject is unavailable', async () => {
+    const worktreeList: WorktreeInfo[] = [
+      { path: '/repo', branch: '', isMain: true, detached: true, locked: false, prunable: false, hash: 'd'.repeat(40) },
+    ];
+    const [item] = await new WorktreesViewProvider(mockSvc({ worktreeList })).getChildren();
+    expect(item.label).toBe('(detached) (main)');
+    expect(item.description).toBe('ddddddd');
+    expect(item.tooltip).not.toContain('undefined');
   });
 
   it('shows a lock icon for a locked worktree', async () => {
@@ -188,6 +209,7 @@ describe('WorktreesViewProvider', () => {
     ];
     const items = await new WorktreesViewProvider(mockSvc({ worktreeList })).getChildren();
     expect(themeId(items[0])).toBe('lock');
+    expect(items[0].tooltip).toContain('Locked');
   });
 });
 
