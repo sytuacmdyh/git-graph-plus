@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 (2026-10-24)
+
+### Fixes
+- Show the latest commit short hash and subject for every worktree in the sidebar, including detached HEAD worktrees.
+- Include detached worktree HEAD commits on the unfiltered Git Graph and display worktree badges with detached status.
+
 ## 0.1.5 (2026-10-13)
 
 ### Features
