@@ -188,6 +188,7 @@ export const zh: Record<string, string> = {
   'graph.deleteRemoteBranch': '删除远程分支',
   'graph.removeWorktree': '移除工作树',
   'graph.setUpstream': '设置上游',
+  'graph.fastForward': '快进“{branch}”到“{remote}”',
 
   // Reset modal
   'reset.title': '重置到 {hash}',

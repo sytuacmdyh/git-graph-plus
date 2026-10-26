@@ -7,7 +7,7 @@ import { branchStore } from '../../../lib/stores/branches.svelte';
 import { uiStore } from '../../../lib/stores/ui.svelte';
 import { modalStore } from '../../../lib/stores/modals.svelte';
 import { i18n } from '../../../lib/i18n/index.svelte';
-import type { Commit, CommitGraphData } from '../../../lib/types';
+import type { BranchInfo, Commit, CommitGraphData } from '../../../lib/types';
 
 function makeCommit(hash: string, subject: string, parents: string[] = []): Commit {
   return {
@@ -53,6 +53,101 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+describe('branch badge fast-forward menu', () => {
+  async function openBranchMenu(overrides: Partial<BranchInfo> = {}, remote = false) {
+    const local = makeCommit('local-tip', 'local');
+    local.refs = [{ type: overrides.current ? 'head' : 'branch', name: 'topic' }, { type: 'branch', name: 'other' }];
+    const upstream = makeCommit('remote-tip', 'remote', [local.hash]);
+    upstream.refs = [{ type: 'remote-branch', name: 'trunk', remote: 'upstream' }];
+    branchStore.branches = [
+      { name: 'main', current: !overrides.current, ahead: 0, behind: 0, hash: 'head-tip' },
+      { name: 'topic', current: false, ahead: 0, behind: 2, hash: local.hash, upstream: 'upstream/trunk', ...overrides },
+      { name: 'other', current: false, ahead: 0, behind: 0, hash: local.hash },
+    ];
+    commitStore.setData(makeGraphData([upstream, local]));
+    const { container } = render(CommitGraph, {});
+    await tick();
+    const badge = Array.from(container.querySelectorAll<HTMLElement>('.ref-badge'))
+      .find(el => el.textContent?.trim() === (remote ? 'upstream/trunk' : 'topic'))!;
+    await fireEvent.contextMenu(badge, { clientX: 10, clientY: 10 });
+    await tick();
+    return container;
+  }
+
+  function fastForwardButton(container: HTMLElement) {
+    return Array.from(container.querySelectorAll<HTMLButtonElement>('.context-menu button'))
+      .find(el => el.textContent?.includes("Fast-Forward 'topic' to 'upstream/trunk'"));
+  }
+
+  it('updates the clicked non-current branch without checking it out, even when refs share a commit', async () => {
+    const container = await openBranchMenu();
+    expect(container.querySelector('.has-children')).toBeNull();
+    const item = fastForwardButton(container);
+    expect(item).toBeDefined();
+    await fireEvent.click(item!);
+    await tick();
+    expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(true);
+    globalThis.__postedMessages = [];
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('button.primary')!);
+    expect(globalThis.__postedMessages.map(m => m.data)).toContainEqual({
+      type: 'fastForward', payload: { local: 'topic', remote: 'upstream/trunk', noCheckout: true },
+    });
+  });
+
+  it('fast-forwards the current branch using the checkout/merge path', async () => {
+    const container = await openBranchMenu({ current: true });
+    await fireEvent.click(fastForwardButton(container)!);
+    await tick();
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    globalThis.__postedMessages = [];
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('button.primary')!);
+    expect(globalThis.__postedMessages.map(m => m.data)).toContainEqual({
+      type: 'fastForward', payload: { local: 'topic', remote: 'upstream/trunk', noCheckout: false },
+    });
+  });
+
+  it('offers the tracking local branch when right-clicking its remote badge', async () => {
+    const container = await openBranchMenu({}, true);
+    await fireEvent.click(fastForwardButton(container)!);
+    await tick();
+    globalThis.__postedMessages = [];
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('button.primary')!);
+    expect(globalThis.__postedMessages.map(m => m.data)).toContainEqual({
+      type: 'fastForward', payload: { local: 'topic', remote: 'upstream/trunk', noCheckout: true },
+    });
+  });
+
+  it.each([
+    { behind: 0 },
+    { ahead: 1 },
+    { upstream: undefined },
+    { upstreamGone: true },
+  ])('hides fast-forward when the branch cannot advance to its upstream: %o', async (overrides) => {
+    const container = await openBranchMenu(overrides);
+    expect(fastForwardButton(container)).toBeUndefined();
+  });
+
+  it('hides fast-forward for a branch checked out in another worktree', async () => {
+    branchStore.worktrees = [{ path: '/repo-linked', branch: 'topic', hash: 'local-tip', isMain: false, detached: false, locked: false, prunable: false }];
+    const container = await openBranchMenu();
+    expect(fastForwardButton(container)).toBeUndefined();
+  });
+
+  it('also offers fast-forward in the branch submenu of the commit row', async () => {
+    const container = await openBranchMenu();
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await tick();
+    const row = container.querySelectorAll<HTMLElement>('.commit-row')[1];
+    await fireEvent.contextMenu(row, { clientX: 10, clientY: 10 });
+    await tick();
+    const branchMenu = Array.from(container.querySelectorAll<HTMLElement>('.has-children'))
+      .find(el => el.textContent?.includes('topic'))!;
+    await fireEvent.mouseEnter(branchMenu);
+    await tick();
+    expect(fastForwardButton(container)).toBeDefined();
+  });
+});
 
 describe('CommitGraph smoke', () => {
   it('renders without crashing when commits are empty', () => {

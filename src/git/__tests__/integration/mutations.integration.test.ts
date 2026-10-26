@@ -473,17 +473,24 @@ describe('GitService integration — state mutations', () => {
   });
 
   describe('fastForwardRef (update a non-current branch in place)', () => {
-    it('fast-forwards a non-current branch without touching HEAD or the working tree', async () => {
+    it('fast-forwards a non-current branch to its fetched upstream without touching HEAD, index or working tree', async () => {
       // topic branches off init, then main advances past it. topic is a strict
       // ancestor of main → the update is a fast-forward.
       const init = commit(repo.path, 'init', { 'a.txt': 'a\n' });
       runGit(repo.path, ['branch', 'topic', init]);
       const mainTip = commit(repo.path, 'main second', { 'b.txt': 'b\n' });
+      runGit(repo.path, ['remote', 'add', 'upstream', 'https://example.com/r.git']);
+      runGit(repo.path, ['update-ref', 'refs/remotes/upstream/trunk', mainTip]);
+      runGit(repo.path, ['branch', '--set-upstream-to=upstream/trunk', 'topic']);
       // We stay on main; topic is the non-current branch being advanced.
       expect(currentBranch(repo.path)).toBe('main');
+      writeFileSync(join(repo.path, 'a.txt'), 'staged edit\n');
+      runGit(repo.path, ['add', 'a.txt']);
       writeFileSync(join(repo.path, 'dirty.txt'), 'uncommitted\n');
+      const statusBefore = runGit(repo.path, ['status', '--porcelain']);
+      const indexBefore = runGit(repo.path, ['write-tree']);
 
-      await svc.fastForwardRef('topic', 'main');
+      await svc.fastForwardRef('topic', 'upstream/trunk');
 
       // topic now points at main's tip…
       expect(runGit(repo.path, ['rev-parse', 'topic']).trim()).toBe(mainTip);
@@ -491,6 +498,8 @@ describe('GitService integration — state mutations', () => {
       expect(currentBranch(repo.path)).toBe('main');
       expect(head(repo.path)).toBe(mainTip);
       expect(existsSync(join(repo.path, 'dirty.txt'))).toBe(true);
+      expect(runGit(repo.path, ['status', '--porcelain'])).toBe(statusBefore);
+      expect(runGit(repo.path, ['write-tree'])).toBe(indexBefore);
     });
 
     it('rejects a non-fast-forward update so diverged commits are never clobbered', async () => {

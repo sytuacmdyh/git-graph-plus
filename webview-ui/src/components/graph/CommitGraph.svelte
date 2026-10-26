@@ -24,7 +24,7 @@
   import SquashModal from '../modals/SquashModal.svelte';
   import MultiCherryPickModal from '../modals/MultiCherryPickModal.svelte';
   import { modalStore } from '../../lib/stores/modals.svelte';
-  import type { Commit, CommitGraphData } from '../../lib/types';
+  import type { BranchInfo, Commit, CommitGraphData, Ref } from '../../lib/types';
   import { tooltip } from '../../lib/actions/tooltip';
   import { getSquashChain } from '../../lib/utils/squash';
   import { chainBranches } from '../../lib/utils/branchChain';
@@ -766,8 +766,25 @@
     };
   });
 
-  function onCommitContextMenu(e: MouseEvent, commit: Commit) {
+  function fastForwardItems(branch: BranchInfo | undefined) {
+    if (!branch?.upstream || branch.upstreamGone || branch.behind <= 0 || branch.ahead !== 0
+      || (!branch.current && worktreeBranches.has(branch.name))) return [];
+    const local = branch.name;
+    const remote = branch.upstream;
+    return [{
+      label: t('graph.fastForward', { branch: local, remote }),
+      action: () => {
+        fastForwardLocalBranch = local;
+        fastForwardRemote = remote;
+        pendingCheckoutDirtyPayload = {};
+        showFastForwardModal = true;
+      },
+    }];
+  }
+
+  function onCommitContextMenu(e: MouseEvent, commit: Commit, clickedRef?: Ref) {
     e.preventDefault();
+    if (clickedRef) e.stopPropagation();
     contextMenuHash = commit.hash;
     // git reports non-branch HEAD states as parenthesized pseudo-labels
     // ("(no branch, rebasing main)", "(HEAD detached at …)"); none are real
@@ -781,7 +798,7 @@
     // When 2+ commits are selected and the right-clicked commit is part of the
     // selection, show only actions that operate on the whole selection — not the
     // single-commit menu (whose entries would silently target just this commit).
-    if (uiStore.multiSelectArmed
+    if (!clickedRef && uiStore.multiSelectArmed
       && uiStore.selectedCommitHashes.length >= 2
       && uiStore.selectedCommitHashes.includes(commit.hash)) {
       const sel = uiStore.selectedCommitHashes;
@@ -845,7 +862,7 @@
     const items: any[] = [];
 
     // ── Ref submenus ──
-    const refs = commit.refs.filter(r => {
+    const refs = (clickedRef ? [clickedRef] : commit.refs).filter(r => {
       if (r.type === 'remote-branch' && r.name === 'HEAD') return false;
       return true;
     }).sort((a, b) => {
@@ -874,6 +891,7 @@
                 label: t('sidebar.checkout'),
                 action: () => doCheckout(branchName),
               },
+              ...fastForwardItems(localBranchMap.get(branchName)),
               ...(branchName !== currentBranch ? [{
                 label: t('graph.mergeInto', { branch: currentBranch }),
                 action: () => { modalStore.openMerge(branchName, branchStore.currentBranch?.name ?? 'current branch'); },
@@ -911,6 +929,7 @@
                 label: t('sidebar.checkout'),
                 action: () => doCheckout(branchName),
               },
+              ...fastForwardItems(localBranchMap.get(branchName)),
               {
                 label: t('graph.createWorktree'),
                 action: () => vscode.postMessage({ type: 'worktreeAddModalRequest', payload: { startPoint: branchName } }),
@@ -955,6 +974,7 @@
               label: t('sidebar.checkout'),
               action: () => doCheckoutRemote(fullName, ref.name),
             },
+            ...branchStore.localBranches.filter(b => b.upstream === fullName).flatMap(fastForwardItems),
             {
               label: t('graph.mergeInto', { branch: currentBranch }),
               action: () => { modalStore.openMerge(fullName, branchStore.currentBranch?.name ?? 'current branch'); },
@@ -1034,6 +1054,12 @@
           ],
         });
       }
+    }
+
+    // A badge targets one specific branch, even when several refs share a commit.
+    if (clickedRef) {
+      contextMenu = { x: e.clientX, y: e.clientY, items: items[0]?.children ?? [] };
+      return;
     }
 
     const isStashCommit = commit.refs.some(r => r.type === 'stash');
@@ -1542,6 +1568,7 @@
                       class:badge-head={ref.type === 'head'}
                       class:badge-fixed={isWtBranch}
                       use:tooltip={trackedUpstream ?? ''}
+                      oncontextmenu={(e) => onCommitContextMenu(e, commit, ref)}
                       ondblclick={(e) => {
                         e.stopPropagation();
                         doCheckout(ref.name, false, {}, true);
@@ -1590,6 +1617,11 @@
                     ondrop={(e) => { if (ref.type === 'branch' || ref.type === 'head') onBranchDrop(e, ref.name); }}
                     ondragend={() => { dragSourceBranch = null; dragOverBranch = null; }}
                     use:tooltip={t('graph.dblClickCheckout', { ref: ref.type === 'remote-branch' ? ref.remote + '/' + ref.name : ref.name })}
+                    oncontextmenu={(e) => {
+                      if (ref.type === 'branch' || ref.type === 'head' || ref.type === 'remote-branch') {
+                        onCommitContextMenu(e, commit, ref);
+                      }
+                    }}
                     ondblclick={(e) => {
                       e.stopPropagation();
                       if (ref.type === 'remote-branch') {

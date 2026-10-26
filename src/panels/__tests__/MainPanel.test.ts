@@ -372,6 +372,17 @@ describe('MainPanel error handling', () => {
 // sequence guard. The rest of the ~80 message cases mirror `merge` and aren't
 // worth duplicating.
 describe('MainPanel orchestration logic', () => {
+  it('fastForward without checkout updates only the ref and refreshes the graph', async () => {
+    await dispatch({ type: 'fastForward', payload: { local: 'topic', remote: 'upstream/trunk', noCheckout: true } });
+    expect(H.git.fastForwardRef).toHaveBeenCalledWith('topic', 'upstream/trunk');
+    expect(H.git.checkout).not.toHaveBeenCalled();
+    expect(H.git.merge).not.toHaveBeenCalled();
+    expect(H.git.stashSave).not.toHaveBeenCalled();
+    expect(H.git.clean).not.toHaveBeenCalled();
+    expect(postedOfType('operationComplete').at(-1)?.payload?.success).toBe(true);
+    expect(postedOfType('fullRefresh').length).toBeGreaterThan(0);
+  });
+
   it('fastForward (checkout path) stashes, checks out, ff-merges, then pops', async () => {
     await dispatch({ type: 'fastForward', payload: { local: 'main', remote: 'origin/main', stash: true } });
     expect(H.git.stashSave).toHaveBeenCalled();
