@@ -2,7 +2,7 @@
   "name": "git-graph-yzc",
   "displayName": "Git Graph YZC",
   "description": "A Git history viewer for Cursor with bulk branch selection and remembered repository filters",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "sytuacmdyh",
   "repository": {
     "type": "git",

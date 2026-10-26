@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.7 (2026-10-26)
 
 ### Features
 - Add fast-forward actions to branch badge context menus when the local branch is behind its fetched upstream without diverging. Non-current branches update without checkout by default.
