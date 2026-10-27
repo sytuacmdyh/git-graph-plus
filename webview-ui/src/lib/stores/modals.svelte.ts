@@ -94,9 +94,9 @@ class ModalStore {
   closePull() { this.pull = { show: false, rebase: true, stash: false }; }
 
   // ── Push ──
-  push = $state({ show: false, forceMode: 'none' as 'none' | 'with-lease' | 'force', setUpstream: true, remote: 'origin', allTags: false });
-  openPush(remote = 'origin') { this.push = { show: true, forceMode: 'none', setUpstream: true, remote, allTags: false }; }
-  closePush() { this.push = { show: false, forceMode: 'none', setUpstream: true, remote: 'origin', allTags: false }; }
+  push = $state({ show: false, forceMode: 'none' as 'none' | 'with-lease' | 'force', setUpstream: true, remote: 'origin', allTags: false, branchName: '' });
+  openPush(remote = 'origin', branchName = '') { this.push = { show: true, forceMode: 'none', setUpstream: true, remote, allTags: false, branchName }; }
+  closePush() { this.push = { show: false, forceMode: 'none', setUpstream: true, remote: 'origin', allTags: false, branchName: '' }; }
 
   // ── Flow Init ──
   flowInit = $state({ show: false });

@@ -1463,7 +1463,7 @@ export class GitService {
     return this.execWithAuthRetry(args, remote);
   }
 
-  async push(remote?: string, branch?: string, options?: { force?: 'with-lease' | 'force'; setUpstream?: boolean }): Promise<string> {
+  async push(remote?: string, branch?: string, options?: { force?: 'with-lease' | 'force'; setUpstream?: boolean; remoteBranch?: string }): Promise<string> {
     const args = ['push'];
     if (options?.force === 'force') {
       args.push('--force');
@@ -1477,7 +1477,7 @@ export class GitService {
       args.push(remote);
       if (branch) {
         // Use full refspec to avoid ambiguity when tag and branch names collide
-        args.push(`refs/heads/${branch}`);
+        args.push(options?.remoteBranch ? `refs/heads/${branch}:refs/heads/${options.remoteBranch}` : `refs/heads/${branch}`);
       }
     }
     return this.execWithAuthRetry(args, remote);

@@ -14,6 +14,27 @@ describe('GitService integration — state mutations', () => {
   });
   afterEach(() => repo.cleanup());
 
+  it('pushes only the named branch to a differently named remote branch without checkout', async () => {
+    const remote = createTempRepo({ bare: true });
+    try {
+      const base = commit(repo.path, 'base');
+      runGit(repo.path, ['checkout', '-b', 'topic']);
+      const topicTip = commit(repo.path, 'topic change');
+      runGit(repo.path, ['checkout', 'main']);
+      runGit(repo.path, ['tag', 'topic']);
+      runGit(repo.path, ['remote', 'add', 'upstream', remote.path]);
+      runGit(repo.path, ['config', 'push.default', 'matching']);
+      await svc.push('upstream', 'topic', { remoteBranch: 'release/topic', setUpstream: true });
+      expect(runGit(remote.path, ['rev-parse', 'refs/heads/release/topic']).trim()).toBe(topicTip);
+      expect(runGit(remote.path, ['for-each-ref', '--format=%(refname)']).trim()).toBe('refs/heads/release/topic');
+      expect(runGit(repo.path, ['rev-parse', 'topic@{upstream}']).trim()).toBe(topicTip);
+      expect(currentBranch(repo.path)).toBe('main');
+      expect(head(repo.path)).toBe(base);
+    } finally {
+      remote.cleanup();
+    }
+  });
+
   describe('branch lifecycle', () => {
     it('createBranch from HEAD', async () => {
       commit(repo.path, 'init');

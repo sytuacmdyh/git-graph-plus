@@ -187,6 +187,7 @@ export const ko: Record<string, string> = {
   'graph.deleteBranch': '브랜치 삭제',
   'graph.deleteRemoteBranch': '리모트 브랜치 삭제',
   'graph.removeWorktree': 'Worktree 삭제',
+  'graph.pushBranch': '리모트에 푸시…',
   'graph.setUpstream': 'Upstream 설정',
   'graph.fastForward': "'{branch}'을(를) '{remote}'(으)로 Fast-Forward",
 

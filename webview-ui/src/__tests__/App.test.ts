@@ -940,6 +940,31 @@ describe('App — modal action callbacks (exhaustive)', () => {
     expect(uiStore.operating).toBe('push');
   });
 
+  it.each([
+    { upstream: 'upstream/release/topic', upstreamGone: false, target: 'release/topic', tracking: false },
+    { upstream: 'upstream/release/topic', upstreamGone: true, target: 'release/topic', tracking: false },
+    { upstream: undefined, upstreamGone: false, target: 'topic', tracking: true },
+  ])('pushes the selected branch to its explicit destination: %o', async ({ upstream, upstreamGone, target, tracking }) => {
+    commonBranchState();
+    branchStore.branches.push({ name: 'topic', current: false, ahead: 1, behind: 0, hash: 'topic-tip', upstream, upstreamGone });
+    branchStore.remotes.push({ name: 'upstream', fetchUrl: '', pushUrl: '' });
+    render(App);
+    modalStore.openPush('upstream', 'topic');
+    await waitFor(() => expect(document.querySelector('.modal button.primary')).not.toBeNull());
+    expect(document.querySelector('.modal')?.textContent).toContain(`upstream/${target}`);
+    if (tracking) {
+      const checkbox = document.querySelector<HTMLInputElement>('.modal input[type="checkbox"]')!;
+      if (!checkbox.checked) await fireEvent.click(checkbox);
+    }
+    globalThis.__postedMessages = [];
+    await fireEvent.click(document.querySelector<HTMLButtonElement>('.modal button.primary')!);
+    expect(globalThis.__postedMessages.map(m => m.data)).toContainEqual({
+      type: 'push', payload: { remote: 'upstream', branch: 'topic', remoteBranch: target, force: undefined, setUpstream: tracking },
+    });
+    expect(branchStore.currentBranch?.name).toBe('main');
+    expect(modalStore.push.branchName).toBe('');
+  });
+
   it('AbortConfirmModal — onConfirm posts abortOperation and clears conflict', async () => {
     const { container } = render(App);
     postMsg('conflictData', {

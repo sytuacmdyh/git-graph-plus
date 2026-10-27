@@ -894,23 +894,32 @@ import AmendModal from './components/modals/AmendModal.svelte';
 {/if}
 
 {#if modalStore.push.show}
-  {@const hasUpstream = !!branchStore.currentBranch?.upstream && !branchStore.currentBranch?.upstreamGone}
-  {@const pushBranchName = branchStore.currentBranch?.name ?? 'branch'}
+  {@const selectedBranch = modalStore.push.branchName}
+  {@const pushBranch = selectedBranch ? branchStore.localBranches.find(b => b.name === selectedBranch) : branchStore.currentBranch}
+  {@const upstreamRemote = [...branchStore.remotes].sort((a, b) => b.name.length - a.name.length).find(r => pushBranch?.upstream?.startsWith(`${r.name}/`))?.name}
+  {@const hasUpstream = selectedBranch ? !!upstreamRemote : !!pushBranch?.upstream && !pushBranch?.upstreamGone}
+  {@const pushBranchName = selectedBranch || pushBranch?.name || 'branch'}
   <PushModal
     branchName={pushBranchName}
     {hasUpstream}
-    upstream={branchStore.currentBranch?.upstream ?? ''}
+    upstream={pushBranch?.upstream ?? ''}
     remotes={branchStore.remotes}
     initialRemote={modalStore.push.remote}
     onClose={() => { modalStore.closePush(); }}
     onPush={({ forceMode, setUpstream, remote, allTags }) => {
       const force = forceMode === 'none' ? undefined : forceMode;
-      const remoteArg = hasUpstream ? undefined : remote;
-      const branchArg = hasUpstream ? undefined : pushBranchName;
+      // Badge actions always name their source and destination explicitly so
+      // pushing a non-current branch cannot accidentally push HEAD instead.
+      const remoteArg = selectedBranch ? (upstreamRemote ?? remote) : hasUpstream ? undefined : remote;
+      const branchArg = selectedBranch || !hasUpstream ? pushBranchName : undefined;
+      const remoteBranch = selectedBranch
+        ? (upstreamRemote ? pushBranch!.upstream!.slice(upstreamRemote.length + 1) : pushBranchName)
+        : undefined;
+      const shouldSetUpstream = !hasUpstream && setUpstream;
       modalStore.closePush();
       uiStore.operating = 'push';
-      vscode.postMessage({ type: 'push', payload: { remote: remoteArg, branch: branchArg, force, setUpstream: !hasUpstream && setUpstream } });
-      if (allTags) vscode.postMessage({ type: 'pushAllTags', payload: { remote } });
+      vscode.postMessage({ type: 'push', payload: { remote: remoteArg, branch: branchArg, remoteBranch, force, setUpstream: shouldSetUpstream } });
+      if (allTags) vscode.postMessage({ type: 'pushAllTags', payload: { remote: remoteArg ?? remote } });
     }}
   />
 {/if}

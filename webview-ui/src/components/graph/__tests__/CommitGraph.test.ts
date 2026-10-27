@@ -47,6 +47,7 @@ beforeEach(() => {
   commitStore.loading = false;
   commitStore.notGitRepo = false;
   branchStore.branches = [];
+  branchStore.remotes = [];
   branchStore.worktrees = [];
   uiStore.selectedCommitHash = null;
   modalStore.closeAll();
@@ -79,6 +80,30 @@ describe('branch badge fast-forward menu', () => {
     return Array.from(container.querySelectorAll<HTMLButtonElement>('.context-menu button'))
       .find(el => el.textContent?.includes("Fast-Forward 'topic' to 'upstream/trunk'"));
   }
+
+  it.each([false, true])('offers push for the clicked local branch (current=%s)', async (current) => {
+    branchStore.remotes = [{ name: 'upstream', fetchUrl: '', pushUrl: '' }];
+    const container = await openBranchMenu({ current });
+    const push = Array.from(container.querySelectorAll<HTMLButtonElement>('.context-menu button'))
+      .find(el => el.textContent?.includes('Push to Remote'))!;
+    expect(push.disabled).toBe(false);
+    await fireEvent.click(push);
+    expect(modalStore.push.show).toBe(true);
+    expect(modalStore.push.branchName).toBe('topic');
+    expect(modalStore.push.remote).toBe('upstream');
+  });
+
+  it('disables push when no remote is configured', async () => {
+    const container = await openBranchMenu();
+    const push = Array.from(container.querySelectorAll<HTMLButtonElement>('.context-menu button'))
+      .find(el => el.textContent?.includes('Push to Remote'))!;
+    expect(push.disabled).toBe(true);
+  });
+
+  it('does not offer a local push action on remote branch badges', async () => {
+    const container = await openBranchMenu({}, true);
+    expect(container.querySelector('.context-menu')?.textContent).not.toContain('Push to Remote');
+  });
 
   it('updates the clicked non-current branch without checking it out, even when refs share a commit', async () => {
     const container = await openBranchMenu();

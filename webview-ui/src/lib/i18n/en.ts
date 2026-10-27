@@ -187,6 +187,7 @@ export const en: Record<string, string> = {
   'graph.deleteBranch': 'Delete Branch',
   'graph.deleteRemoteBranch': 'Delete Remote Branch',
   'graph.removeWorktree': 'Remove Worktree',
+  'graph.pushBranch': 'Push to Remote…',
   'graph.setUpstream': 'Set Upstream',
   'graph.fastForward': "Fast-Forward '{branch}' to '{remote}'",
 

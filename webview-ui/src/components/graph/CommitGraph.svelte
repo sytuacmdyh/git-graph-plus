@@ -766,6 +766,23 @@
     };
   });
 
+  function pushItems(branch: BranchInfo | undefined) {
+    if (!branch) return [];
+    return [{
+      label: t('graph.pushBranch'),
+      icon: 'cloud-upload',
+      disabled: branchStore.remotes.length === 0,
+      action: () => {
+        const remote = [...branchStore.remotes]
+          .sort((a, b) => b.name.length - a.name.length)
+          .find(r => branch.upstream?.startsWith(`${r.name}/`))?.name
+          ?? branchStore.remotes.find(r => r.name === 'origin')?.name
+          ?? branchStore.remotes[0]?.name;
+        if (remote) modalStore.openPush(remote, branch.name);
+      },
+    }];
+  }
+
   function fastForwardItems(branch: BranchInfo | undefined) {
     if (!branch?.upstream || branch.upstreamGone || branch.behind <= 0 || branch.ahead !== 0
       || (!branch.current && worktreeBranches.has(branch.name))) return [];
@@ -891,6 +908,7 @@
                 label: t('sidebar.checkout'),
                 action: () => doCheckout(branchName),
               },
+              ...pushItems(localBranchMap.get(branchName)),
               ...fastForwardItems(localBranchMap.get(branchName)),
               ...(branchName !== currentBranch ? [{
                 label: t('graph.mergeInto', { branch: currentBranch }),
@@ -929,6 +947,7 @@
                 label: t('sidebar.checkout'),
                 action: () => doCheckout(branchName),
               },
+              ...pushItems(localBranchMap.get(branchName)),
               ...fastForwardItems(localBranchMap.get(branchName)),
               {
                 label: t('graph.createWorktree'),
