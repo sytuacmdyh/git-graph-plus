@@ -608,14 +608,14 @@ describe('MainPanel file history', () => {
     await dispatch({ type: 'getLog', payload: { limit: 2 } });
     expect(H.git.prepareFileHistory).toHaveBeenCalledTimes(1);
     await dispatch({ type: 'getLog', payload: { branches: ['main'], remoteFilter: ['local'] } });
-    expect(H.git.prepareFileHistory).toHaveBeenLastCalledWith({ branches: ['main'], remoteFilter: ['local'], sortOrder: 'topological' });
+    expect(H.git.prepareFileHistory).toHaveBeenLastCalledWith({ branches: ['main'], remoteFilter: ['local'], sortOrder: 'date' });
     expect(H.git.prepareFileHistory).toHaveBeenCalledTimes(2);
   });
 
   it('routes the exact path, scope, and sort order and correlates the response', async () => {
     H.git.getFileHistory = vi.fn(async () => ({ recognized: true, path: 'file', hashes: ['older'] }));
     await dispatch({ type: 'getFileHistory', payload: { requestId: 'query', file: './file', branches: ['main'], remoteFilter: ['local'] } });
-    expect(H.git.getFileHistory).toHaveBeenCalledWith('./file', { branches: ['main'], remoteFilter: ['local'], sortOrder: 'topological' });
+    expect(H.git.getFileHistory).toHaveBeenCalledWith('./file', { branches: ['main'], remoteFilter: ['local'], sortOrder: 'date' });
     expect(postedOfType('fileHistoryResult').at(-1)?.payload).toEqual({ requestId: 'query', recognized: true, path: 'file', hashes: ['older'] });
   });
 

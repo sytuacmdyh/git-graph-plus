@@ -487,7 +487,7 @@ export class MainPanel {
           await this.restoreFilters();
           if (generation !== this.repoGeneration || logSequence !== this.logSequence || this.disposed) break;
           const cfg = vscode.workspace.getConfiguration('gitGraphYzc');
-          const sortOrder = cfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
+          const sortOrder = cfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'date');
           const includeSignature = cfg.get<boolean>('showSignatureStatus', true);
           let requestedLimit = message.payload.limit ?? readInitialCommitCount();
           // Omitted filters preserve the restored state; explicit [] means All.
@@ -1303,7 +1303,7 @@ export class MainPanel {
           const isCurrent = () => seq === this.fileHistorySequence && generation === this.repoGeneration && !this.disposed;
           try {
             const sortOrder = vscode.workspace.getConfiguration('gitGraphYzc')
-              .get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
+              .get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'date');
             const result = await gitService.getFileHistory(message.payload.file, {
               branches: message.payload.branches,
               remoteFilter: message.payload.remoteFilter,
@@ -1921,7 +1921,7 @@ export class MainPanel {
       await this.restoreFilters();
       if (!isCurrent()) return;
       const refreshCfg = vscode.workspace.getConfiguration('gitGraphYzc');
-      const sortOrder = refreshCfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'topological');
+      const sortOrder = refreshCfg.get<'author-date' | 'date' | 'topological'>('graphSortOrder', 'date');
       const includeSignature = refreshCfg.get<boolean>('showSignatureStatus', true);
       const refreshLimit = this.currentLimit || readInitialCommitCount();
       const remoteFilter = [...this.currentRemoteFilter];

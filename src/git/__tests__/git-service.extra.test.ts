@@ -644,34 +644,19 @@ describe('GitService — log() arg construction', () => {
       .remoteNamesCacheTime = Date.now();
   });
 
-  it('uses --topo-order when sortOrder=topological', async () => {
+  it.each([
+    [undefined, '--date-order'],
+    ['date', '--date-order'],
+    ['author-date', '--author-date-order'],
+    ['topological', '--topo-order'],
+  ] as const)('uses %s sorting with %s', async (sortOrder, expected) => {
     let captured: string[] = [];
     mockExec(service, async (args) => {
       if (args[0] === 'log' && !args.includes('--no-walk')) { captured = args; return ''; }
       return '';
     });
-    await service.log({ sortOrder: 'topological' });
-    expect(captured).toContain('--topo-order');
-  });
-
-  it('uses --date-order when sortOrder=date', async () => {
-    let captured: string[] = [];
-    mockExec(service, async (args) => {
-      if (args[0] === 'log' && !args.includes('--no-walk')) { captured = args; return ''; }
-      return '';
-    });
-    await service.log({ sortOrder: 'date' });
-    expect(captured).toContain('--date-order');
-  });
-
-  it('uses --author-date-order by default', async () => {
-    let captured: string[] = [];
-    mockExec(service, async (args) => {
-      if (args[0] === 'log' && !args.includes('--no-walk')) { captured = args; return ''; }
-      return '';
-    });
-    await service.log();
-    expect(captured).toContain('--author-date-order');
+    await service.log(sortOrder === undefined ? undefined : { sortOrder });
+    expect(captured).toContain(expected);
   });
 
   it('passes --max-count when limit option is provided', async () => {

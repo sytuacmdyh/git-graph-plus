@@ -445,7 +445,7 @@
             "Sort commits by committer date (--date-order)",
             "Sort commits by topology, parents after children (--topo-order)"
           ],
-          "default": "topological",
+          "default": "date",
           "description": "Commit sort order in the graph"
         },
         "gitGraphYzc.showSignatureStatus": {

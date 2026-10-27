@@ -194,7 +194,7 @@ Related commits are highlighted in the full graph. Use the arrows, Enter, or Shi
 | `gitGraphYzc.initialCommitCount`      | `200`         | Commits loaded on first render / refresh (lower = faster in huge repos) |
 | `gitGraphYzc.loadMoreCommitCount`     | `50`          | Extra commits fetched per **Load more commits** click    |
 | `gitGraphYzc.locale`                  | `auto`        | UI language (`auto`, `en`, `ko`, `zh-cn`)                |
-| `gitGraphYzc.graphSortOrder`          | `topological` | Commit sort order (`topological`, `date`, `author-date`) |
+| `gitGraphYzc.graphSortOrder`          | `date`        | Commit sort order (`topological`, `date`, `author-date`) |
 | `gitGraphYzc.interactiveRebase.mode`  | `ui`          | Interactive rebase mode (`ui` visual editor, `classic` `git rebase -i` in a terminal) |
 | `gitGraphYzc.showSignatureStatus`     | `true`        | Show GPG/SSH signature status in the graph               |
 | `gitGraphYzc.commitMessageLinks`      | `[]`          | Custom `{ pattern, url }` regex rules that turn commit-message text into clickable links |

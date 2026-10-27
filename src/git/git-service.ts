@@ -517,7 +517,7 @@ export class GitService {
 
   private logSortArg(sortOrder?: LogOptions['sortOrder']): string {
     return sortOrder === 'topological' ? '--topo-order' :
-      sortOrder === 'date' ? '--date-order' : '--author-date-order';
+      sortOrder === 'author-date' ? '--author-date-order' : '--date-order';
   }
 
   async log(options?: LogOptions): Promise<Commit[]> {

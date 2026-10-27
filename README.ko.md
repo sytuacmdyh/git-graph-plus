@@ -194,7 +194,7 @@ Cursor를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜�
 | `gitGraphYzc.initialCommitCount`      | `200`         | 첫 렌더링/새로고침 시 로드할 커밋 수 (큰 리포지토리는 낮추면 빨라짐) |
 | `gitGraphYzc.loadMoreCommitCount`     | `50`          | **Load more commits** 클릭당 추가로 가져올 커밋 수    |
 | `gitGraphYzc.locale`                  | `auto`        | UI 언어 (`auto`, `en`, `ko`, `zh-cn`)                 |
-| `gitGraphYzc.graphSortOrder`          | `topological` | 커밋 정렬 순서 (`topological`, `date`, `author-date`) |
+| `gitGraphYzc.graphSortOrder`          | `date`        | 커밋 정렬 순서 (`topological`, `date`, `author-date`) |
 | `gitGraphYzc.interactiveRebase.mode`  | `ui`          | Interactive rebase 모드 (`ui` 시각적 편집기, `classic` 터미널에서 `git rebase -i`) |
 | `gitGraphYzc.showSignatureStatus`     | `true`        | 그래프에 GPG/SSH 서명 상태 표시                       |
 | `gitGraphYzc.commitMessageLinks`      | `[]`          | 커밋 메시지 텍스트를 클릭 가능한 링크로 만드는 사용자 정의 `{ pattern, url }` 정규식 규칙 |

@@ -209,7 +209,7 @@ Git Graph YZC 是由 `sytuacmdyh` 独立维护的 [Git Graph Plus](https://githu
 | `gitGraphYzc.initialCommitCount` | `200` | 首次加载或刷新时读取的提交数；大型仓库可适当降低 |
 | `gitGraphYzc.loadMoreCommitCount` | `50` | 每次点击“加载更多提交”时额外读取的数量 |
 | `gitGraphYzc.locale` | `auto` | 界面语言：`auto`、`en`、`ko`、`zh-cn` |
-| `gitGraphYzc.graphSortOrder` | `topological` | 提交排序：`topological`、`date`、`author-date` |
+| `gitGraphYzc.graphSortOrder` | `date`        | 提交排序：`topological`、`date`、`author-date` |
 | `gitGraphYzc.interactiveRebase.mode` | `ui` | 交互式 rebase 模式：`ui` 使用可视化编辑器，`classic` 在终端运行 `git rebase -i` |
 | `gitGraphYzc.showSignatureStatus` | `true` | 在图中显示 GPG / SSH 签名状态 |
 | `gitGraphYzc.commitMessageLinks` | `[]` | 使用 `{ pattern, url }` 正则规则，将提交信息转换为可点击链接 |
