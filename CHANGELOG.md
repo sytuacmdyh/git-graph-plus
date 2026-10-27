@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 (2026-10-27)
+
+### Fixes
+- Default commit ordering to committer date (`--date-order`) for graph loading, refreshes, and file history.
+- Keep explicitly configured author-date and topological ordering available and align the Git service fallback with the extension default.
+
 ## 0.1.8 (2026-10-27)
 
 ### Features
