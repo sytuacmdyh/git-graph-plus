@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 (2026-10-27)
+
+### Features
+- Add "Push to Remote…" to local branch badge context menus, including branches that are not checked out.
+- Push the selected branch to its configured upstream, including differently named remote branches, or select a remote and optionally establish tracking for unpublished branches.
+- Disable the push action when no remote is configured and provide English, Chinese and Korean menu labels.
+
 ## 0.1.7 (2026-10-26)
 
 ### Features
