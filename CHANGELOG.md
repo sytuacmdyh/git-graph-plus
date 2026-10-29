@@ -88,7 +88,7 @@ The entries below record the original Git Graph Plus release history.
 ## 0.7.2 (2026-06-30)
 
 ### New Features
-- **Branch Toolbar** - A Fork-style split button on the toolbar creates a branch (or worktree) seeded from the current branch, with Lean Sync (rebase the current branch onto the default branch), Lean Finish (merge it into the default branch), and a nested Git Flow menu.
+- **Branch Toolbar** - A Fork-style split button on the toolbar creates a branch (or worktree) seeded from the current branch and provides a nested Git Flow menu.
 - **File Path Actions** - Right-click a changed file to reveal it in the OS file explorer, copy its absolute path, or copy its repo-relative path.
 - **Classic Interactive Rebase** - A new `gitGraphPlus.interactiveRebase.mode` setting can run `git rebase -i` in an integrated terminal using your own Git editor, instead of the visual modal.
 - **Keyboard-Driven Rebase Modal** - The interactive rebase modal is now keyboard-navigable and wider for easier editing.

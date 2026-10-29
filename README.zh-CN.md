@@ -83,7 +83,7 @@ Git Graph YZC 是由 `sytuacmdyh` 独立维护的 [Git Graph Plus](https://githu
 | 功能 | 说明 |
 | --- | --- |
 | **分支操作** | 创建、重命名、删除和 checkout 分支 |
-| **分支工具栏** | 从当前分支创建新分支或 worktree；提供 **Lean Sync**（将当前分支 rebase 到默认分支）、**Lean Finish**（合并到默认分支）及 Git Flow 菜单 |
+| **分支工具栏** | 从当前分支创建新分支或 worktree，并提供 Git Flow 菜单 |
 | **Amend** | 直接从提交图修改最后一次提交 |
 | **Merge** | 支持默认、`--no-ff`、`--ff-only` 和 squash 合并策略 |
 | **Rebase** | 支持普通 rebase 和可拖拽排序的交互式 rebase |

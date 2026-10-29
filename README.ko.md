@@ -70,7 +70,7 @@ Cursor를 위한 모던 Git GUI. 커밋 히스토리를 시각화하고, 브랜�
 | 기능                     | 설명                                                                                    |
 | ------------------------ | --------------------------------------------------------------------------------------- |
 | **브랜치 작업**          | 브랜치 생성, 이름 변경, 삭제, checkout                                                  |
-| **브랜치 툴바**          | Fork 스타일 split 버튼: 현재 브랜치를 기준으로 브랜치(또는 worktree) 생성, **Lean Sync** (현재 브랜치를 default 브랜치 위로 rebase), **Lean Finish** (default 브랜치에 merge), 중첩 Git Flow 메뉴 |
+| **브랜치 툴바**          | Fork 스타일 split 버튼: 현재 브랜치를 기준으로 브랜치(또는 worktree)를 생성하고 중첩 Git Flow 메뉴 제공 |
 | **Amend**                | 그래프에서 클릭 한 번으로 마지막 커밋을 즉시 수정(amend)                                |
 | **Merge**                | Default, `--no-ff`, `--ff-only`, squash merge 전략                                      |
 | **Rebase**               | 일반 rebase 및 드래그로 순서 변경 가능한 interactive rebase UI                          |

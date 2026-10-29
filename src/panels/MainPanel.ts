@@ -1504,11 +1504,6 @@ export class MainPanel {
           this.post({ type: 'flowBranches', payload: branches });
           break;
         }
-        case 'getDefaultBranch': {
-          const name = await this.gitService.defaultBranch();
-          this.post({ type: 'defaultBranch', payload: { name } });
-          break;
-        }
         // --- Submodule ---
         case 'getSubmodules': {
           const submodules = await this.gitService.submoduleStatus();

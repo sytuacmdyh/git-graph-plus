@@ -596,35 +596,4 @@ describe('GitService integration — basic queries', () => {
     });
   });
 
-  describe('defaultBranch', () => {
-    it('resolves origin/HEAD to its local branch name', async () => {
-      commit(repo.path, 'init', { 'a.txt': '1\n' });
-      // 별도 bare 원격을 만들고 origin/HEAD를 설정
-      const remote = createTempRepo({ bare: true });
-      runGit(repo.path, ['remote', 'add', 'origin', remote.path]);
-      runGit(repo.path, ['push', '-u', 'origin', currentBranch(repo.path)]);
-      runGit(repo.path, ['remote', 'set-head', 'origin', '-a']);
-
-      const result = await svc.defaultBranch();
-      expect(result).toBe(currentBranch(repo.path));
-      remote.cleanup();
-    });
-
-    it('falls back to local main/master/develop when no origin/HEAD', async () => {
-      commit(repo.path, 'init', { 'a.txt': '1\n' });
-      // 현재 브랜치를 master로, 그리고 develop 생성. main 없음.
-      runGit(repo.path, ['branch', '-m', 'master']);
-      runGit(repo.path, ['branch', 'develop']);
-
-      const result = await svc.defaultBranch();
-      expect(result).toBe('master'); // main 없음 → master 우선
-    });
-
-    it('returns null when no candidate exists', async () => {
-      commit(repo.path, 'init', { 'a.txt': '1\n' });
-      runGit(repo.path, ['branch', '-m', 'work']); // main/master/develop 모두 아님, 원격 없음
-      const result = await svc.defaultBranch();
-      expect(result).toBeNull();
-    });
-  });
 });

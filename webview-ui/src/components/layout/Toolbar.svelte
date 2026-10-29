@@ -8,7 +8,6 @@
   import NoRemotesErrorModal from '../modals/NoRemotesErrorModal.svelte';
   import { tooltip } from '../../lib/actions/tooltip';
   import { modalStore } from '../../lib/stores/modals.svelte';
-  import { commitStore } from '../../lib/stores/commits.svelte';
   import { samePath } from '../../lib/utils/path';
   import type { FlowStatus, FlowBranches } from '../../lib/types';
 
@@ -22,7 +21,6 @@
   let showAddRemote = $state(false);
   let showRepoDropdown = $state(false);
   let showFlowDropdown = $state(false);
-  let defaultBranch = $state<string | null>(null);
   let flowStatus = $state<FlowStatus | null>(null);
   let flowBranches = $state<FlowBranches>({ features: [], releases: [], hotfixes: [] });
   let showNoRemotesError = $state(false);
@@ -61,7 +59,6 @@
     if (showFlowDropdown) {
       vscode.postMessage({ type: 'checkFlowStatus' });
       vscode.postMessage({ type: 'getFlowBranches' });
-      vscode.postMessage({ type: 'getDefaultBranch' });
     }
   }
 
@@ -86,7 +83,6 @@
       }
       if (msg.type === 'flowStatus') flowStatus = msg.payload;
       if (msg.type === 'flowBranches') flowBranches = msg.payload;
-      if (msg.type === 'defaultBranch') defaultBranch = msg.payload.name;
     }
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -112,25 +108,12 @@
   const createStartPoint = $derived(
     isDetached || !currentBranchName ? (branchStore.currentBranch?.hash ?? 'HEAD') : currentBranchName,
   );
-  const hasUncommitted = $derived(commitStore.commits.some(c => c.hash === 'UNCOMMITTED'));
-  // Lean Sync/Finish need a real default branch that isn't the current one.
-  const leanEnabled = $derived(
-    !!defaultBranch && !isDetached && !!currentBranchName && currentBranchName !== defaultBranch,
-  );
-
   function createBranchFromCurrent() {
     modalStore.openCreateBranch(createStartPoint);
   }
   function newWorktree() {
     vscode.postMessage({ type: 'worktreeAddModalRequest', payload: { startPoint: createStartPoint } });
   }
-  function leanSync() {
-    if (leanEnabled) modalStore.runDrag('rebase', currentBranchName!, defaultBranch!, hasUncommitted);
-  }
-  function leanFinish() {
-    if (leanEnabled) modalStore.runDrag('merge', currentBranchName!, defaultBranch!, hasUncommitted);
-  }
-
   // Esc closes whichever toolbar dropdown is open (mirrors the backdrop click).
   // When a dropdown is open it is the foreground layer, so Esc must dismiss
   // only it — stop the event so App's global Esc handler doesn't also close
@@ -308,15 +291,6 @@
           <button class="flow-dropdown-item" onclick={() => { showFlowDropdown = false; newWorktree(); }}>
             {t('flow.newWorktree')}
           </button>
-          {#if leanEnabled}
-            <div class="flow-dropdown-separator"></div>
-            <button class="flow-dropdown-item" onclick={() => { showFlowDropdown = false; leanSync(); }}>
-              {t('flow.leanSync', { current: currentBranchName ?? '', branch: defaultBranch ?? '' })}
-            </button>
-            <button class="flow-dropdown-item" onclick={() => { showFlowDropdown = false; leanFinish(); }}>
-              {t('flow.leanFinish', { current: currentBranchName ?? '', branch: defaultBranch ?? '' })}
-            </button>
-          {/if}
           <div class="flow-dropdown-separator"></div>
           <div class="flow-submenu-wrapper">
             <button class="flow-dropdown-item flow-submenu-trigger">

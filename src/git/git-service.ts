@@ -748,29 +748,6 @@ export class GitService {
     });
   }
 
-  /**
-   * Resolve the repository's default ("main") branch as a local branch name.
-   * Tries origin/HEAD first (e.g. refs/remotes/origin/main → "main") and only
-   * accepts it if that local branch exists, then falls back to the first of
-   * main / master / develop that exists locally. Returns null if none match.
-   */
-  async defaultBranch(): Promise<string | null> {
-    const locals = new Set((await this.branches()).filter(b => !b.remote).map(b => b.name));
-    try {
-      const ref = (await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])).trim();
-      // ref looks like "origin/main"; strip the remote prefix.
-      const slash = ref.indexOf('/');
-      const name = slash >= 0 ? ref.slice(slash + 1) : ref;
-      if (name && locals.has(name)) return name;
-    } catch {
-      // No origin/HEAD configured — fall through to local fallback.
-    }
-    for (const candidate of ['main', 'master', 'develop']) {
-      if (locals.has(candidate)) return candidate;
-    }
-    return null;
-  }
-
   async tags(): Promise<TagInfo[]> {
     return this.dedupe('tags', async () => {
       const raw = await this.exec([

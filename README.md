@@ -70,7 +70,7 @@ Related commits are highlighted in the full graph. Use the arrows, Enter, or Shi
 | Feature                  | Description                                                                                           |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
 | **Branch Operations**    | Create, rename, delete, and checkout branches                                                         |
-| **Branch Toolbar**       | Fork-style split button: create a branch (or worktree) seeded from the current branch, with **Lean Sync** (rebase the current branch onto the default branch), **Lean Finish** (merge it into the default branch), and a nested Git Flow menu |
+| **Branch Toolbar**       | Fork-style split button: create a branch (or worktree) seeded from the current branch, with a nested Git Flow menu |
 | **Amend**                | Amend the last commit directly from the graph with a single click                                    |
 | **Merge**                | Default, `--no-ff`, `--ff-only`, and squash merge strategies                                          |
 | **Rebase**               | Standard rebase and interactive rebase with drag-to-reorder UI                                        |

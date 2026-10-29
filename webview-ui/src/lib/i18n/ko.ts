@@ -587,8 +587,6 @@ export const ko: Record<string, string> = {
   'flow.newBranch': '새 브랜치 생성',
   'flow.newWorktree': '새 워크트리 생성',
   'flow.group': 'Git Flow',
-  'flow.leanSync': "'{current}' 동기화 ('{branch}'에 Rebase)",
-  'flow.leanFinish': "'{current}' 완료 ('{branch}'에 Merge)",
   'flow.notInstalled': 'git-flow가 설치되어 있지 않습니다.',
   'flow.initialize': 'Git Flow 초기화',
   'flow.startFeature': 'Feature 생성',

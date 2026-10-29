@@ -587,8 +587,6 @@ export const zh: Record<string, string> = {
   'flow.newBranch': '新建分支',
   'flow.newWorktree': '新建工作树',
   'flow.group': 'Git Flow',
-  'flow.leanSync': "同步 '{current}'（在 '{branch}' 上 Rebase）",
-  'flow.leanFinish': "完成 '{current}'（Merge 到 '{branch}'）",
   'flow.notInstalled': '未安装 git-flow。',
   'flow.initialize': '初始化 Git Flow',
   'flow.startFeature': '开始功能',
