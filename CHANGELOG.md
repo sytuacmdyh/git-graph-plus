@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 (2026-10-29)
+
+### Changes
+- Remove the confusing default-branch Lean Sync and Lean Finish shortcuts from the branch menu.
+- Keep Git Flow actions as the explicit workflow for feature, release, and hotfix branches.
+
 ## 0.1.10 (2026-10-29)
 
 ### Fixes
