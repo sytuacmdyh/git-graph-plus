@@ -15,6 +15,7 @@ const H = vi.hoisted(() => {
     stashList: vi.fn(async () => []),
     worktreeList: vi.fn(async () => []),
     merge: vi.fn(async () => {}),
+    deleteBranch: vi.fn(async () => {}),
     fastForwardRef: vi.fn(async () => {}),
     stashPop: vi.fn(async () => {}),
     showCommitDiff: vi.fn(async () => []),
@@ -491,6 +492,26 @@ describe('MainPanel orchestration logic', () => {
 });
 
 describe('MainPanel — persistent repository filters', () => {
+  it('removes a deleted branch from the active filter before refreshing', async () => {
+    H.git.branches.mockResolvedValue([{ name: 'feature' }]);
+    await dispatch({ type: 'getLog', payload: { branches: ['feature'], remoteFilter: [] } });
+
+    // A real git log fails when a deleted ref is still present in the filter.
+    H.git.branches.mockResolvedValue([]);
+    H.git.log.mockImplementation(async options => {
+      if (options.branches?.includes('feature')) {
+        throw new GitError("fatal: ambiguous argument 'feature'", 128, ['log']);
+      }
+      return [];
+    });
+    await dispatch({ type: 'deleteBranch', payload: { name: 'feature', force: false } });
+
+    expect(H.git.deleteBranch).toHaveBeenCalledWith('feature', false);
+    expect(H.git.log.mock.calls.at(-1)![0]).toMatchObject({ branches: [] });
+    expect(postedOfType('fullRefresh')).toHaveLength(1);
+    await vi.waitFor(() => expect(filterValues.get(filterKey())).toEqual({ branches: [], remoteFilter: [] }));
+  });
+
   it('keeps filters when loading more without resending the selection', async () => {
     await dispatch({ type: 'getLog', payload: { branches: ['origin/main'], remoteFilter: ['origin'] } });
     await dispatch({ type: 'getLog', payload: { limit: 200 } });

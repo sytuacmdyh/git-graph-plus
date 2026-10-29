@@ -378,6 +378,15 @@ export class MainPanel {
     });
   }
 
+  /** Keep a mutation from leaving a deleted ref in the next git-log scope. */
+  private removeBranchFromFilter(name: string, remote?: string): void {
+    const removedNames = new Set([name, remote ? `${remote}/${name}` : '']);
+    const next = this.currentBranchFilter.filter(branch => !removedNames.has(branch));
+    if (next.length === this.currentBranchFilter.length) return;
+    this.currentBranchFilter = next;
+    this.saveFilters();
+  }
+
   /** Initial getLog and early watcher refreshes share one validated restore. */
   private async restoreFilters(): Promise<void> {
     if (this.filterRestore) return this.filterRestore;
@@ -716,6 +725,7 @@ export class MainPanel {
             type: 'operationComplete',
             payload: { operation: 'deleteBranch', success: true },
           });
+          this.removeBranchFromFilter(message.payload.name);
           vscode.window.showInformationMessage(vscode.l10n.t('branchDeleted', message.payload.name));
           await this.refreshAll();
           break;
@@ -726,6 +736,7 @@ export class MainPanel {
             type: 'operationComplete',
             payload: { operation: 'deleteRemoteBranch', success: true },
           });
+          this.removeBranchFromFilter(message.payload.name, message.payload.remote);
           vscode.window.showInformationMessage(vscode.l10n.t('remoteBranchDeleted', message.payload.remote, message.payload.name));
           await this.refreshAll();
           break;
