@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.12 (2026-11-03)
+
+### Features
+- Add a Merge Commit action to non-current-branch commit context menus.
+- Reuse the merge modal for merging a selected commit SHA into the current branch.
+
 ## 0.1.11 (2026-10-29)
 
 ### Changes
