@@ -369,6 +369,32 @@ describe('CommitGraph smoke', () => {
     expect(msg?.payload?.startPoint).toBe('develop');
   });
 
+  it('offers merge for a commit outside the current branch and opens the merge modal with its SHA', async () => {
+    const head = makeCommit('main-tip', 'main tip');
+    head.refs = [{ type: 'head', name: 'main' }];
+    const other = makeCommit('other-commit', 'other commit');
+    commitStore.setData(makeGraphData([other, head]));
+    branchStore.branches = [
+      { name: 'main', current: true, ahead: 0, behind: 0, hash: head.hash },
+    ];
+
+    const { container } = render(CommitGraph, {});
+    await tick();
+    await fireEvent.contextMenu(container.querySelectorAll<HTMLElement>('.commit-row')[0], { clientX: 10, clientY: 10 });
+    await tick();
+
+    const item = Array.from(container.querySelectorAll<HTMLElement>('.menu-item'))
+      .find(el => (el.textContent ?? '').includes("Merge Commit into 'main'"));
+    expect(item).toBeTruthy();
+    await fireEvent.click(item!);
+    await tick();
+
+    expect(modalStore.merge.show).toBe(true);
+    expect(modalStore.merge.source).toBe(other.hash);
+    expect(modalStore.merge.target).toBe('main');
+    modalStore.closeMerge();
+  });
+
   it('does not crash on a branch-set fingerprint cache hit (same commits, same branch)', async () => {
     // First mount populates the cache.
     commitStore.setData(makeGraphData([

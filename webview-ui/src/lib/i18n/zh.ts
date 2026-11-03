@@ -157,6 +157,7 @@ export const zh: Record<string, string> = {
   'graph.cancelSelection': '取消选择',
   'graph.newTag': '新建标签',
   'graph.mergeInto': "合并到 '{branch}'",
+  'graph.mergeCommitInto': "将提交合并到 '{branch}'",
   'graph.createWorktree': '新建工作树',
   'graph.rebaseTo': "将 '{branch}' 变基到此处",
   'graph.interactiveRebaseTo': "将 '{branch}' 交互式变基到此处",
@@ -440,6 +441,8 @@ export const zh: Record<string, string> = {
   // Merge modal
   'merge.title': '合并分支',
   'merge.desc': '将选定的分支合并到当前分支。',
+  'merge.commitTitle': '合并提交',
+  'merge.commitDesc': '将选定的提交合并到当前分支。',
   'merge.mergeType': '合并类型：',
   'merge.default': '默认 - 尽可能快进',
   'merge.noFf': '禁用快进 - 始终创建合并提交',

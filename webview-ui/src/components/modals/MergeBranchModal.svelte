@@ -41,8 +41,8 @@
   });
 </script>
 
-<Modal title={t('merge.title')} {onClose}>
-  <p class="modal-desc">{t('merge.desc')}</p>
+<Modal title={t(isCommitHash(source) ? 'merge.commitTitle' : 'merge.title')} {onClose}>
+  <p class="modal-desc">{t(isCommitHash(source) ? 'merge.commitDesc' : 'merge.desc')}</p>
   <div class="modal-context-card">
     <span use:tooltip={shortenRef(source)} class="modal-pill modal-pill--source"><i class="codicon {isCommitHash(source) ? 'codicon-git-commit' : 'codicon-git-branch'}"></i><span class="modal-pill-text">{shortenRef(source)}</span></span>
     <i class="codicon codicon-arrow-right" style="color: var(--text-secondary);"></i>

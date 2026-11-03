@@ -157,6 +157,7 @@ export const en: Record<string, string> = {
   'graph.cancelSelection': 'Cancel selection',
   'graph.newTag': 'New Tag',
   'graph.mergeInto': "Merge into '{branch}'",
+  'graph.mergeCommitInto': "Merge Commit into '{branch}'",
   'graph.createWorktree': 'New Worktree',
   'graph.rebaseTo': "Rebase '{branch}' to Here",
   'graph.interactiveRebaseTo': "Interactively Rebase '{branch}' to Here",
@@ -440,6 +441,8 @@ export const en: Record<string, string> = {
   // Merge modal
   'merge.title': 'Merge Branch',
   'merge.desc': 'Merge the selected branch into the current branch.',
+  'merge.commitTitle': 'Merge Commit',
+  'merge.commitDesc': 'Merge the selected commit into the current branch.',
   'merge.mergeType': 'Merge Type:',
   'merge.default': 'Default - Fast-forward if possible',
   'merge.noFf': 'No Fast-forward - Always create merge commit',

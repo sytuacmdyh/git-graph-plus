@@ -157,6 +157,7 @@ export const ko: Record<string, string> = {
   'graph.cancelSelection': '선택 취소',
   'graph.newTag': '새 태그 생성',
   'graph.mergeInto': "'{branch}'에 Merge",
+  'graph.mergeCommitInto': "Commit을 '{branch}'에 Merge",
   'graph.createWorktree': '새 워크트리 생성',
   'graph.rebaseTo': "'{branch}'을(를) 여기로 Rebase",
   'graph.interactiveRebaseTo': "'{branch}'을(를) 여기로 Interactive Rebase",
@@ -440,6 +441,8 @@ export const ko: Record<string, string> = {
   // Merge modal
   'merge.title': 'Merge Branch',
   'merge.desc': '선택한 브랜치를 현재 브랜치에 merge합니다.',
+  'merge.commitTitle': 'Merge Commit',
+  'merge.commitDesc': '선택한 커밋을 현재 브랜치에 merge합니다.',
   'merge.mergeType': 'Merge 유형:',
   'merge.default': '기본 - 가능하면 fast-forward',
   'merge.noFf': 'No Fast-forward - 항상 Merge commit 생성',

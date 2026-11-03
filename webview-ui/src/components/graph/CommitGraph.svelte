@@ -1105,6 +1105,7 @@
 
       // ── Branch / tag operations (merge, rebase, interactive rebase) ──
       const branchOps: any[] = [];
+      const isOnCurrentBranch = currentBranchCommits.has(commit.hash);
       const hasBranchOrTag = commit.refs.some(r => r.type === 'head' || r.type === 'branch' || r.type === 'remote-branch' || r.type === 'tag');
       if (hasBranchOrTag) {
         const localRef  = commit.refs.find(r => r.type === 'head' || r.type === 'branch');
@@ -1115,8 +1116,11 @@
           branchOps.push({ label: t('graph.mergeInto', { branch: currentBranch }), action: () => { modalStore.openMerge(mergeRef, branchStore.currentBranch?.name ?? 'current branch'); } });
         }
       }
-      const isOnCurrentBranch = currentBranchCommits.has(commit.hash);
       if (!isOnCurrentBranch) {
+        // A commit can be part of another branch's history without being its
+        // tip, so it has no branch/tag ref of its own. Allow merging that exact
+        // commit by passing its SHA through the existing merge modal.
+        branchOps.push({ label: t('graph.mergeCommitInto', { branch: currentBranch }), action: () => { modalStore.openMerge(commit.hash, branchStore.currentBranch?.name ?? 'current branch'); } });
         branchOps.push({ label: t('graph.rebaseTo', { branch: currentBranch }), action: () => { rebaseTarget = commit.hash; showRebaseModal = true; } });
       }
       branchOps.push({ label: t('graph.interactiveRebaseTo', { branch: currentBranch }), action: () => { openInteractiveRebase(commit.hash); } });
