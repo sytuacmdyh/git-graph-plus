@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.13 (2026-11-24)
+
+### Fixes
+- Check out the selected commit in detached HEAD mode from the commit context menu, even when a branch at that commit is in use in another worktree.
+
 ## 0.1.12 (2026-11-03)
 
 ### Features
