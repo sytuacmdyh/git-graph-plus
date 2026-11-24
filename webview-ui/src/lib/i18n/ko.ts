@@ -369,7 +369,7 @@ export const ko: Record<string, string> = {
   'checkoutCommit.selectBranch': '브랜치',
   'checkoutCommit.checkoutBranch': '{name} Checkout',
   'checkoutCommit.checkoutRemote': '{name} Checkout',
-  'checkoutCommit.detachedWarning': '이 커밋에 브랜치가 없습니다. Detached HEAD 상태가 됩니다.',
+  'checkoutCommit.detachedWarning': 'Checkout 후 Detached HEAD 상태가 됩니다.',
 
   // Checkout and Fast-Forward modal
   'fastForward.title': 'Checkout and Fast-Forward',

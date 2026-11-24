@@ -136,6 +136,20 @@ describe('GitService integration — state mutations', () => {
       expect(head(repo.path)).toBe(c1);
     });
 
+    it('checks out a commit whose branch is checked out in another worktree', async () => {
+      const tip = commit(repo.path, 'topic tip');
+      const linkedPath = join(repo.path, 'linked-worktree');
+      runGit(repo.path, ['worktree', 'add', '-b', 'topic', linkedPath, tip]);
+      commit(repo.path, 'main tip');
+
+      await expect(svc.checkout('topic')).rejects.toThrow(/already (checked out|used by worktree)/);
+      await svc.checkout(tip, { detach: true });
+
+      expect(currentBranch(repo.path)).toBe('HEAD');
+      expect(head(repo.path)).toBe(tip);
+      expect(currentBranch(linkedPath)).toBe('topic');
+    });
+
     it('"stash and checkout" sets changes aside instead of carrying them over', async () => {
       // The stash-and-checkout option must leave the working tree clean on the
       // target branch and keep the local changes in the stash for later — it

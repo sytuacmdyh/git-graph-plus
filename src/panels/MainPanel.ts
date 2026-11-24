@@ -650,7 +650,11 @@ export class MainPanel {
           if (message.payload.clean) {
             await this.gitService.clean();
           }
-          await this.gitService.checkout(message.payload.ref, { force: message.payload.force, merge: message.payload.merge });
+          await this.gitService.checkout(message.payload.ref, {
+            detach: message.payload.detach,
+            force: message.payload.force,
+            merge: message.payload.merge,
+          });
           if (message.payload.pullAfter) {
             await this.gitService.pull();
           }

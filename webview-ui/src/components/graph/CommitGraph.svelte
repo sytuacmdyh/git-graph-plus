@@ -246,12 +246,10 @@
   let rebaseTargetBranches = $state<string[] | null>(null);
   let rebaseDirtyBranch = $state<string | null>(null);
   let pendingRebaseBase = $state<string | null>(null);
-  let showCheckoutCommitModal = $state(false);
-  let checkoutCommitHash = $state('');
+  let checkoutTarget = $state<{ hash: string; detach: boolean } | null>(null);
 
-  function openCheckoutCommitModal(hash: string) {
-    checkoutCommitHash = hash;
-    showCheckoutCommitModal = true;
+  function openCheckoutCommitModal(hash: string, detach = false) {
+    checkoutTarget = { hash, detach };
   }
 
   let showPullAfterCheckoutModal = $state(false);
@@ -279,7 +277,7 @@
   const anyModalOpen = $derived(
     modalStore.anyOpen
     || showResetModal || showRebaseModal || showCherryPickModal || showRevertModal || !!autosquashTarget
-    || showCheckoutCommitModal || showFastForwardModal || showPullAfterCheckoutModal || showWorktreeBlockedModal
+    || !!checkoutTarget || showFastForwardModal || showPullAfterCheckoutModal || showWorktreeBlockedModal
     || !!squashChain || !!multiCherryPickTargets || !!interactiveRebaseBase
     || !!rebaseTargetBranches || !!rebaseDirtyBranch,
   );
@@ -1169,18 +1167,7 @@
       groups.push([
         {
           label: t('graph.checkoutCommit'),
-          action: () => {
-            const localRefs = commit.refs.filter(r => r.type === 'head' || r.type === 'branch');
-            if (localRefs.length === 1) {
-              doCheckout(localRefs[0].name);
-            } else if (localRefs.length > 1) {
-              openCheckoutCommitModal(commit.hash);
-            } else {
-              const remoteRef = commit.refs.find(r => r.type === 'remote-branch' && r.name !== 'HEAD');
-              if (remoteRef) { doCheckoutRemote(`${remoteRef.remote}/${remoteRef.name}`, remoteRef.name); }
-              else            { openCheckoutCommitModal(commit.hash); }
-            }
-          },
+          action: () => openCheckoutCommitModal(commit.hash, true),
         },
         { label: t('graph.cherryPickCommit'), action: () => { cherryPickTarget = commit.hash; showCherryPickModal = true; } },
         { label: t('graph.revertCommit'),     action: () => { revertTarget = commit.hash; showRevertModal = true; } },
@@ -1931,17 +1918,20 @@
   />
 {/if}
 
-{#if showCheckoutCommitModal}
-  {@const commitForHash = commitStore.getCommit(checkoutCommitHash)}
+{#if checkoutTarget}
+  {@const { hash, detach } = checkoutTarget}
+  {@const commitForHash = detach ? undefined : commitStore.getCommit(hash)}
   {@const linkedBranches = commitForHash ? commitForHash.refs.filter(r => r.type === 'branch' || r.type === 'head').map(r => r.name) : []}
   {@const linkedRemoteBranches = commitForHash ? commitForHash.refs.filter(r => r.type === 'remote-branch' && r.name !== 'HEAD').map(r => ({ remote: r.remote!, name: r.name })) : []}
   <CheckoutCommitModal
-    hash={checkoutCommitHash}
+    {hash}
     {linkedBranches}
     {linkedRemoteBranches}
     currentBranch={branchStore.currentBranch?.name}
     onCheckout={(ref, dirty) => {
-      if (linkedBranches.includes(ref)) {
+      if (detach) {
+        vscode.postMessage({ type: 'checkout', payload: { ref, detach, ...dirty } });
+      } else if (linkedBranches.includes(ref)) {
         doCheckout(ref, false, dirty);
       } else if (linkedRemoteBranches.some(rb => `${rb.remote}/${rb.name}` === ref)) {
         const rb = linkedRemoteBranches.find(rb => `${rb.remote}/${rb.name}` === ref)!;
@@ -1950,7 +1940,7 @@
         doCheckout(ref, false, dirty);
       }
     }}
-    onClose={() => { showCheckoutCommitModal = false; }}
+    onClose={() => { checkoutTarget = null; }}
   />
 {/if}
 

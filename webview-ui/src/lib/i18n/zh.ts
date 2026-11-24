@@ -369,7 +369,7 @@ export const zh: Record<string, string> = {
   'checkoutCommit.selectBranch': '分支',
   'checkoutCommit.checkoutBranch': '检出 {name}',
   'checkoutCommit.checkoutRemote': '检出 {name}',
-  'checkoutCommit.detachedWarning': '此提交处没有分支。您将处于分离头指针状态。',
+  'checkoutCommit.detachedWarning': '检出后将进入分离 HEAD 状态。',
 
   // Checkout and Fast-Forward modal
   'fastForward.title': '检出并快进',

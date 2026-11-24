@@ -175,6 +175,35 @@ describe('branch badge fast-forward menu', () => {
 });
 
 describe('CommitGraph smoke', () => {
+  it('checks out the commit hash when its branch is in another worktree', async () => {
+    const commit = makeCommit('a'.repeat(40), 'Topic tip');
+    commit.refs = [{ type: 'branch', name: 'topic' }];
+    branchStore.worktrees = [{ path: '/repo-linked', branch: 'topic', hash: commit.hash, isMain: false, detached: false, locked: false, prunable: false }];
+    commitStore.setData(makeGraphData([commit]));
+    const { container, getByRole, findByRole } = render(CommitGraph, {});
+    const row = container.querySelector<HTMLElement>('.commit-row')!;
+
+    await fireEvent.contextMenu(row);
+    await fireEvent.click(getByRole('menuitem', { name: 'Checkout Commit' }));
+    expect(getByRole('dialog').textContent).toContain('You will be in detached HEAD state.');
+
+    const messages = globalThis.__postedMessages.map(m => m.data) as Array<{ type: string; payload: { requestId: string } }>;
+    const request = messages.find(m => m.type === 'checkDirty')!;
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'dirtyState', payload: { requestId: request.payload.requestId, dirty: true } },
+    }));
+    await findByRole('radio', { name: 'Keep changes and checkout' });
+    await fireEvent.click(getByRole('button', { name: 'Checkout' }));
+    expect(globalThis.__postedMessages.map(m => m.data)).toContainEqual({
+      type: 'checkout', payload: { ref: commit.hash, detach: true, merge: true },
+    });
+
+    const badge = row.querySelector<HTMLElement>('.ref-badge')!;
+    await fireEvent.contextMenu(badge);
+    await fireEvent.click(getByRole('menuitem', { name: 'Checkout' }));
+    expect(getByRole('dialog').textContent).toContain('This branch is already checked out in another worktree.');
+  });
+
   it('renders without crashing when commits are empty', () => {
     const { container } = render(CommitGraph, {});
     // No commit rows expected, but the container should exist.

@@ -33,7 +33,7 @@ export type WebviewMessage =
   | { type: 'getRepoList' }
   | { type: 'checkDirty'; payload?: { requestId?: string } }
   | { type: 'predictConflicts'; payload: { ours: string; theirs: string; mode?: 'rebase'; mergeBase?: string; requestId?: string } }
-  | { type: 'checkout'; payload: { ref: string; pullAfter?: boolean; force?: boolean; merge?: boolean; stash?: boolean; stashUntracked?: boolean; clean?: boolean } }
+  | { type: 'checkout'; payload: { ref: string; detach?: boolean; pullAfter?: boolean; force?: boolean; merge?: boolean; stash?: boolean; stashUntracked?: boolean; clean?: boolean } }
   | { type: 'getCommitDiff'; payload: { hash: string } }
   | { type: 'getFileDiff'; payload: { hash: string; file: string } }
   | { type: 'getCommitData'; payload: { hash: string } }
