@@ -1568,15 +1568,13 @@
                     return commit.refs.some(r => r.type === 'remote-branch' && `${r.remote}/${r.name}` === localInfo.upstream);
                   })()}
                   {@const trackedUpstream = (ref.type === 'branch' || ref.type === 'head') ? (localBranchMap.get(ref.name)?.upstream ?? null) : null}
-                  {@const isWtBranch = (ref.type === 'branch' || ref.type === 'head') && worktreeBranches.has(ref.name)}
-                  {@const badgeColor = ref.type === 'tag' ? '#f0c040' : ref.type === 'stash' ? 'var(--text-secondary, #888)' : isWtBranch ? '#4caf50' : nodeColor}
+                  {@const badgeColor = ref.type === 'tag' ? '#f0c040' : ref.type === 'stash' ? 'var(--text-secondary, #888)' : nodeColor}
                   {@const showCloudOnly = hasRemote && trackedUpstream && (remoteFilter.length === 0 || (remoteFilter.includes('local') && remoteFilter.includes(trackedUpstream.split('/')[0])))}
                   {#if showCloudOnly}
                     <span
                       class="ref-badge badge-cloud-only"
                       style="--badge-color: {badgeColor};"
                       class:badge-head={ref.type === 'head'}
-                      class:badge-fixed={isWtBranch}
                       use:tooltip={trackedUpstream ?? ''}
                       oncontextmenu={(e) => onCommitContextMenu(e, commit, ref)}
                       ondblclick={(e) => {
@@ -1596,18 +1594,18 @@
                   {/if}
                   {#if ref.type === 'worktree'}
                     <span
-                      class="ref-badge badge-fixed badge-worktree"
-                      style="--badge-color: #4caf50;"
+                      class="ref-badge badge-worktree"
                       use:tooltip={t('graph.worktreeHead') + ': ' + (ref.worktree?.path ?? ref.name)}
                     >
                       <i class="codicon codicon-worktree ref-icon"></i>
+                      <span class="worktree-kind">{t('graph.worktreeLabel')}</span>
                       {ref.name}{#if ref.worktree?.detached}{' '}{t('toolbar.detachedHead')}{/if}
                     </span>
                   {:else}
                   <span
                     class="ref-badge"
                     style="--badge-color: {badgeColor};{ref.type === 'stash' ? ' --fixed-tint: 28%;' : ''}"
-                    class:badge-fixed={ref.type === 'tag' || ref.type === 'stash' || isWtBranch}
+                    class:badge-fixed={ref.type === 'tag' || ref.type === 'stash'}
                     class:badge-head={ref.type === 'head'}
                     class:badge-no-bar={showCloudOnly}
                     draggable={ref.type === 'branch' || ref.type === 'head'}
@@ -1672,7 +1670,6 @@
                   >
                     {#if ref.type === 'head'}
                       <i class="codicon codicon-check ref-icon"></i>
-                      {#if worktreeBranches.has(ref.name)}<i class="codicon codicon-worktree ref-icon"></i>{/if}
                       {ref.name}
                     {:else if ref.type === 'remote-branch'}
                       <i class="codicon codicon-cloud ref-icon"></i>
@@ -1684,7 +1681,7 @@
                       <i class="codicon codicon-archive ref-icon"></i>
                       {ref.name}
                     {:else}
-                      {#if (ref.type === 'branch') && worktreeBranches.has(ref.name)}<i class="codicon codicon-worktree ref-icon"></i>{/if}
+                      {#if ref.type === 'branch'}<i class="codicon codicon-git-branch ref-icon"></i>{/if}
                       {ref.name}
                     {/if}
                   </span>
@@ -2367,7 +2364,7 @@
      corners cleanly instead of a mismatched thick border) over a neutral fill,
      so a branch's badge color is legible regardless of color vision. Three
      levels of emphasis share this one visual language: regular branch (no fill)
-     < tag/stash/worktree (light tint) < current branch (strong tint + bold).
+     < tag/stash (light tint) < current branch (strong tint + bold).
      The bar width is user-configurable via --badge-bar-width (see
      gitGraphYzc.branchBadgeBarThickness). */
   /* Drag-over target uses the same subtle fill as hover. */
@@ -2417,7 +2414,7 @@
      pressing Esc flips it into :focus-visible, drawing an unwanted outline. */
   .ref-badge:focus-visible { outline: none; }
 
-  /* Fixed-color refs: tag/worktree 20%, stash 28% (via inline --fixed-tint). */
+  /* Fixed-color refs: tag 20%, stash 28% (via inline --fixed-tint). */
   .ref-badge.badge-fixed {
     background: color-mix(in srgb, var(--badge-color) var(--fixed-tint, 20%), transparent);
   }
@@ -2495,6 +2492,30 @@
   :global(body.vscode-light) .badge-cloud-only:hover + .ref-badge,
   :global(body.vscode-light) .badge-cloud-only:has(+ .ref-badge:hover) {
     box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Worktrees describe checkout locations, so give them a separate silhouette
+     and an explicit type label even when the directory matches a branch name. */
+  .ref-badge.badge-worktree,
+  :global(body.vscode-light) .ref-badge.badge-worktree,
+  :global(body.vscode-high-contrast) .ref-badge.badge-worktree,
+  :global(body.vscode-high-contrast-light) .ref-badge.badge-worktree {
+    padding: 1px 8px;
+    border-radius: 12px;
+    border: 1px dashed var(--vscode-descriptionForeground, currentColor);
+    background: transparent;
+    color: var(--text-primary);
+    cursor: default;
+  }
+
+  .ref-badge.badge-worktree::before {
+    content: none;
+  }
+
+  .worktree-kind {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    margin-right: 3px;
   }
 
   .ref-icon {

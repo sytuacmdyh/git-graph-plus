@@ -240,12 +240,12 @@ describe('CommitGraph smoke', () => {
     const rows = container.querySelectorAll<HTMLElement>('.commit-row');
     expect(rows).toHaveLength(2);
     const detachedBadge = rows[0].querySelector<HTMLElement>('.badge-worktree')!;
-    expect(detachedBadge.textContent?.trim()).toBe('inspect (Detached HEAD)');
+    expect(detachedBadge.textContent?.trim()).toBe('Worktree inspect (Detached HEAD)');
     expect(detachedBadge.querySelector('.codicon-worktree')).toBeTruthy();
     expect(detachedBadge.getAttribute('role')).not.toBe('button');
     expect(detachedBadge.getAttribute('draggable')).not.toBe('true');
     expect(rows[0].textContent).toContain('Detached HEAD inspect snapshot');
-    expect(rows[1].querySelector('.badge-worktree')?.textContent?.trim()).toBe('main-checkout');
+    expect(rows[1].querySelector('.badge-worktree')?.textContent?.trim()).toBe('Worktree main-checkout');
     expect(rows[1].querySelector('.badge-head')?.textContent?.trim()).toBe('main');
   });
 
