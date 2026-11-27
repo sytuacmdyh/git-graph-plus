@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.14 (2026-11-27)
+
+### Fixes
+- Distinguish branch badges from worktree locations with branch icons and graph colors, plus dashed worktree pills with localized type labels.
+- Preserve current-branch emphasis, worktree path tooltips, and detached HEAD status.
+
 ## 0.1.13 (2026-11-24)
 
 ### Fixes
